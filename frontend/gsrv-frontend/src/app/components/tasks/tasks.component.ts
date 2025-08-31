@@ -516,9 +516,8 @@ export class TasksComponent implements OnInit {
 
   getRoleDisplay(role: string): string {
     const roles: { [key: string]: string } = {
-      'ADMIN': 'Administrateur',
-      'AGENT': 'Agent ONSSA',
-      'VETERINAIRE': 'Vétérinaire'
+      'ADMIN': 'Admin',
+      'AGENT': 'Agent'
     };
     return roles[role] || role;
   }

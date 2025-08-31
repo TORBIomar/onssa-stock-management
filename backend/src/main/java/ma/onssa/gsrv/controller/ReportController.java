@@ -12,6 +12,8 @@ import org.slf4j.LoggerFactory;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.http.HttpStatus;
 
 @RestController
 @RequestMapping("/reports")
@@ -24,6 +26,7 @@ public class ReportController {
     private ReportService reportService;
 
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Report> create(@Valid @RequestBody ReportDto dto) {
         logger.info("Creating report with DTO: {}", dto);
         try {
@@ -43,11 +46,13 @@ public class ReportController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'AGENT')")
     public List<Report> list() {
         return reportService.listAll();
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'AGENT')")
     public ResponseEntity<Report> getById(@PathVariable Long id) {
         Report report = reportService.getById(id);
         if (report != null) {
@@ -57,6 +62,7 @@ public class ReportController {
     }
 
     @GetMapping("/type/{type}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'AGENT')")
     public List<Report> getByType(@PathVariable String type) {
         return reportService.getByType(type);
     }
@@ -67,6 +73,7 @@ public class ReportController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Report> update(@PathVariable Long id, @Valid @RequestBody ReportDto dto) {
         try {
             Report report = new Report();
@@ -95,37 +102,55 @@ public class ReportController {
     }
 
     @PostMapping("/{id}/generate")
+    @PreAuthorize("hasAnyRole('ADMIN', 'AGENT')")
     public ResponseEntity<Report> generateReport(@PathVariable Long id) {
         try {
+            logger.info("Generating report with ID: {}", id);
             Report generated = reportService.generateReport(id);
+            logger.info("Report generated successfully with ID: {}", generated.getId());
             return ResponseEntity.ok(generated);
         } catch (Exception e) {
-            logger.error("Error generating report: ", e);
-            throw e;
+            logger.error("Error generating report with ID {}: ", id, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(null);
         }
     }
 
     @PostMapping("/{type}/generate")
+    @PreAuthorize("hasAnyRole('ADMIN', 'AGENT')")
     public ResponseEntity<Report> generateReportByType(@PathVariable String type, @RequestBody ReportDto dto) {
         try {
             logger.info("Generating report of type: {} with DTO: {}", type, dto);
+            
+            // Validate report type
+            Report.ReportType reportType;
+            try {
+                reportType = Report.ReportType.valueOf(type.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                logger.error("Invalid report type: {}", type);
+                return ResponseEntity.badRequest().body(null);
+            }
+            
             Report report = new Report();
             report.setTitle(dto.title);
             report.setDescription(dto.description);
-            report.setType(ma.onssa.gsrv.entity.Report.ReportType.valueOf(type.toUpperCase()));
-            report.setStatus(ma.onssa.gsrv.entity.Report.ReportStatus.EN_COURS);
+            report.setType(reportType);
+            report.setStatus(Report.ReportStatus.EN_COURS);
 
             Report created = reportService.create(report);
             // Generate the report content
             Report generated = reportService.generateReport(created.getId());
+            logger.info("Report generated successfully with ID: {}", generated.getId());
             return ResponseEntity.ok(generated);
         } catch (Exception e) {
             logger.error("Error generating report by type: ", e);
-            throw e;
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(null);
         }
     }
 
     @GetMapping("/{type}/download/{format}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'AGENT')")
     public ResponseEntity<byte[]> downloadReport(@PathVariable String type, @PathVariable String format,
             @RequestParam(required = false) String startDate,
             @RequestParam(required = false) String endDate) {
@@ -144,7 +169,8 @@ public class ReportController {
                     .body(reportContent);
         } catch (Exception e) {
             logger.error("Error downloading report: ", e);
-            throw e;
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(null);
         }
     }
 
@@ -162,6 +188,7 @@ public class ReportController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         reportService.delete(id);
         return ResponseEntity.noContent().build();

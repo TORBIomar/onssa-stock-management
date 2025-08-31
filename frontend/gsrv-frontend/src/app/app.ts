@@ -22,16 +22,48 @@ export class App {
     if (isPlatformBrowser(this.platformId)) {
       const token = localStorage.getItem('auth_token');
       const userRaw = localStorage.getItem('auth_user');
+
       this.isAuthed.set(!!token);
       if (userRaw) {
-        try { this.currentUser.set(JSON.parse(userRaw)); } catch { }
+        try {
+          this.currentUser.set(JSON.parse(userRaw));
+        } catch {
+          // Invalid user data, clear it
+          localStorage.removeItem('auth_user');
+          localStorage.removeItem('auth_token');
+          this.isAuthed.set(false);
+          this.currentUser.set(null);
+        }
       }
+
+      // Listen for storage changes
       window.addEventListener('storage', () => {
         const t = localStorage.getItem('auth_token');
         const u = localStorage.getItem('auth_user');
         this.isAuthed.set(!!t);
         this.currentUser.set(u ? JSON.parse(u) : null);
       });
+
+      // Check if we're on the root path and redirect appropriately
+      if (window.location.pathname === '/') {
+        if (!token || !userRaw) {
+          this.router.navigateByUrl('/login');
+        } else {
+          // User is authenticated, redirect to appropriate dashboard
+          try {
+            const user = JSON.parse(userRaw);
+            if (user.role === 'ADMIN') {
+              this.router.navigateByUrl('/dashboard/admin');
+            } else if (user.role === 'AGENT') {
+              this.router.navigateByUrl('/dashboard/agent');
+            } else {
+              this.router.navigateByUrl('/login');
+            }
+          } catch {
+            this.router.navigateByUrl('/login');
+          }
+        }
+      }
     }
   }
 

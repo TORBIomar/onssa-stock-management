@@ -3,7 +3,6 @@ package ma.onssa.gsrv.dto;
 import ma.onssa.gsrv.entity.Product;
 import ma.onssa.gsrv.entity.Reclamation;
 
-
 import java.util.List;
 import java.util.Map;
 
@@ -31,4 +30,9 @@ public class DashboardData {
     // Agent/Veterinarian-specific
     public long myReclamations;
     public long resolvedReclamations;
+
+    // Agent-specific metrics (regulatory focus)
+    public Long pendingInspections;
+    public Double complianceRate;
+    public Long regulatoryAlerts;
 }

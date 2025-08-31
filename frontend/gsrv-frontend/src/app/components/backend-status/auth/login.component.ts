@@ -68,8 +68,15 @@ import { ApiService } from '../../../services/api.service';
             </span>
           </button>
 
-          <div class="register-link">
-            Pas de compte ? <a routerLink="/register">Créer un compte</a>
+          <div class="text-center mt-4">
+            <p class="mb-0">
+              Pas encore de compte ? 
+              <a routerLink="/register" class="text-decoration-none">S'enregistrer</a>
+            </p>
+            <small class="text-muted d-block mt-2">
+              <i class="bi bi-info-circle me-1"></i>
+              L'enregistrement est réservé aux agents ONSSA autorisés
+            </small>
           </div>
 
           <div class="alert alert-error" *ngIf="error">
@@ -347,10 +354,8 @@ export class LoginComponent {
           this.router.navigateByUrl('/dashboard/admin');
         } else if (res.role === 'AGENT') {
           this.router.navigateByUrl('/dashboard/agent');
-        } else if (res.role === 'VETERINAIRE') {
-          this.router.navigateByUrl('/dashboard/veterinaire');
         } else {
-          this.router.navigateByUrl('/dashboard');
+          this.router.navigateByUrl('/dashboard/admin');
         }
       },
       error: (err: any) => {

@@ -7,7 +7,7 @@ interface User {
   id: number;
   username: string;
   email: string;
-  role: 'ADMIN' | 'AGENT' | 'VETERINAIRE';
+  role: 'ADMIN' | 'AGENT';
   active: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -213,9 +213,8 @@ interface User {
                       <label class="form-label">Rôle *</label>
                       <select class="form-select" formControlName="role">
                         <option value="">Sélectionner un rôle</option>
-                        <option value="AGENT">Agent ONSSA</option>
-                        <option value="VETERINAIRE">Vétérinaire</option>
-                        <option value="ADMIN">Administrateur</option>
+                        <option value="ADMIN">Admin</option>
+                        <option value="AGENT">Agent</option>
                       </select>
                       <div class="invalid-feedback d-block" 
                            *ngIf="form.get('role')?.invalid && form.get('role')?.touched">
@@ -461,9 +460,8 @@ export class UsersPageComponent implements OnInit {
   // Display methods
   getRoleDisplay(role: string): string {
     const roles: { [key: string]: string } = {
-      'ADMIN': 'Administrateur',
-      'AGENT': 'Agent ONSSA',
-      'VETERINAIRE': 'Vétérinaire'
+      'ADMIN': 'Admin',
+      'AGENT': 'Agent'
     };
     return roles[role] || role;
   }
@@ -473,9 +471,7 @@ export class UsersPageComponent implements OnInit {
       case 'ADMIN':
         return 'badge bg-danger';
       case 'AGENT':
-        return 'badge bg-primary';
-      case 'VETERINAIRE':
-        return 'badge bg-success';
+        return 'badge bg-info';
       default:
         return 'badge bg-secondary';
     }

@@ -106,9 +106,12 @@ public class ReportService {
     }
 
     public Report generateReport(Long id) {
+        logger.info("Starting report generation for ID: {}", id);
+
         Optional<Report> existingReport = reportRepository.findById(id);
         if (existingReport.isPresent()) {
             Report report = existingReport.get();
+            logger.info("Found report: {} with status: {}", report.getTitle(), report.getStatus());
 
             // Simulate report generation
             try {
@@ -124,10 +127,16 @@ public class ReportService {
                 return saved;
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                throw new RuntimeException("Report generation interrupted");
+                logger.error("Report generation interrupted for ID: {}", id, e);
+                throw new RuntimeException("Report generation interrupted: " + e.getMessage());
+            } catch (Exception e) {
+                logger.error("Error during report generation for ID: {}", id, e);
+                throw new RuntimeException("Failed to generate report: " + e.getMessage());
             }
+        } else {
+            logger.error("Report not found with ID: {}", id);
+            throw new RuntimeException("Report not found with id: " + id);
         }
-        throw new RuntimeException("Report not found with id: " + id);
     }
 
     public void delete(Long id) {

@@ -70,6 +70,23 @@ interface CacheEntry<T> {
   ttl: number;
 }
 
+export interface User {
+  id: number;
+  username: string;
+  email: string;
+  role: 'ADMIN' | 'AGENT';
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UserCreateDto {
+  username: string;
+  email: string;
+  password: string;
+  role: 'ADMIN' | 'AGENT';
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -927,7 +944,7 @@ export class ApiService {
   }
 
   isVeterinaire(): boolean {
-    return this.hasRole('VETERINAIRE');
+    return this.hasRole('AGENT'); // Redirect veterinarian functionality to agent
   }
 
   // Cache management methods

@@ -6,6 +6,7 @@ import ma.onssa.gsrv.entity.Product;
 
 import ma.onssa.gsrv.service.ProductService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,6 +27,7 @@ public class ProductController {
     }
 
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Product> create(@Valid @RequestBody ProductDto dto) {
         logger.info("Creating product with DTO: {}", dto);
         try {
@@ -46,21 +48,25 @@ public class ProductController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'AGENT')")
     public List<Product> list() {
         return productService.listAll();
     }
 
     @GetMapping("/low-stock")
+    @PreAuthorize("hasAnyRole('ADMIN', 'AGENT')")
     public List<Product> lowStock() {
         return productService.lowStock();
     }
 
     @GetMapping("/category/{category}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'AGENT')")
     public List<Product> byCategory(@PathVariable String category) {
         return productService.findByCategory(category);
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public Product update(@PathVariable Long id, @Valid @RequestBody ProductDto dto) {
         Product p = new Product();
         p.setName(dto.name);
@@ -72,6 +78,7 @@ public class ProductController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         productService.delete(id);
         return ResponseEntity.noContent().build();

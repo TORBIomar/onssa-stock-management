@@ -69,18 +69,49 @@ import { ApiService } from '../../services/api.service';
               <p class="stat-label">Stock Faible</p>
             </div>
           </div>
+
+          <!-- Agent-specific stats -->
+          <div class="stat-card info">
+            <div class="stat-icon">
+              <i class="bi bi-clipboard-check"></i>
+            </div>
+            <div class="stat-content">
+              <h3 class="stat-number">{{ dashboardData?.pendingInspections || 0 }}</h3>
+              <p class="stat-label">Inspections en Attente</p>
+            </div>
+          </div>
+
+          <div class="stat-card success">
+            <div class="stat-icon">
+              <i class="bi bi-shield-check"></i>
+            </div>
+            <div class="stat-content">
+              <h3 class="stat-number">{{ dashboardData?.complianceRate || 0 }}%</h3>
+              <p class="stat-label">Taux de Conformité</p>
+            </div>
+          </div>
+
+          <div class="stat-card warning">
+            <div class="stat-icon">
+              <i class="bi bi-exclamation-diamond"></i>
+            </div>
+            <div class="stat-content">
+              <h3 class="stat-number">{{ dashboardData?.regulatoryAlerts || 0 }}</h3>
+              <p class="stat-label">Alertes Réglementaires</p>
+            </div>
+          </div>
         </div>
 
         <div class="actions-section">
-          <h2 class="section-title">Actions Rapides</h2>
+          <h2 class="section-title">Actions Rapides - Agent ONSSA</h2>
           <div class="actions-grid">
             <div class="action-card" routerLink="/products">
               <div class="action-icon products">
                 <i class="bi bi-box"></i>
               </div>
               <div class="action-content">
-                <h3>Gestion Produits</h3>
-                <p>Surveiller les stocks et inventaire</p>
+                <h3>Surveillance des Stocks</h3>
+                <p>Vérifier la conformité des stocks et alertes</p>
               </div>
               <div class="action-arrow">
                 <i class="bi bi-arrow-right"></i>
@@ -92,8 +123,8 @@ import { ApiService } from '../../services/api.service';
                 <i class="bi bi-exclamation-triangle"></i>
               </div>
               <div class="action-content">
-                <h3>Réclamations</h3>
-                <p>Traiter les demandes en attente</p>
+                <h3>Gestion Réclamations</h3>
+                <p>Traiter les demandes et signalements</p>
               </div>
               <div class="action-arrow">
                 <i class="bi bi-arrow-right"></i>
@@ -105,8 +136,21 @@ import { ApiService } from '../../services/api.service';
                 <i class="bi bi-file-earmark-text"></i>
               </div>
               <div class="action-content">
-                <h3>Rapports</h3>
-                <p>Générer et consulter les rapports</p>
+                <h3>Rapports de Conformité</h3>
+                <p>Générer les rapports réglementaires</p>
+              </div>
+              <div class="action-arrow">
+                <i class="bi bi-arrow-right"></i>
+              </div>
+            </div>
+
+            <div class="action-card" routerLink="/inspections">
+              <div class="action-icon inspections">
+                <i class="bi bi-clipboard-data"></i>
+              </div>
+              <div class="action-content">
+                <h3>Planification Inspections</h3>
+                <p>Gérer le planning des inspections</p>
               </div>
               <div class="action-arrow">
                 <i class="bi bi-arrow-right"></i>
@@ -242,6 +286,8 @@ import { ApiService } from '../../services/api.service';
     .stat-card.primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
     .stat-card.warning { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
     .stat-card.danger { background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%); }
+    .stat-card.info { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+    .stat-card.success { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
 
     .stat-icon {
       font-size: 3rem;
@@ -311,6 +357,7 @@ import { ApiService } from '../../services/api.service';
     .action-icon.products { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
     .action-icon.reclamations { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
     .action-icon.reports { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
+    .action-icon.inspections { background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%); }
 
     .action-content {
       flex: 1;
@@ -378,13 +425,19 @@ export class AgentDashboardComponent implements OnInit {
           this.dashboardData = {
             totalProducts: data.stats.totalProducts || 0,
             totalReclamations: data.stats.totalReclamations || 0,
-            lowStockCount: data.stats.criticalProducts || 0
+            lowStockCount: data.stats.criticalProducts || 0,
+            pendingInspections: data.stats.pendingInspections || 0,
+            complianceRate: data.stats.complianceRate || 0,
+            regulatoryAlerts: data.stats.regulatoryAlerts || 0
           };
         } else {
           this.dashboardData = data || {
             totalProducts: 0,
             totalReclamations: 0,
-            lowStockCount: 0
+            lowStockCount: 0,
+            pendingInspections: 0,
+            complianceRate: 0,
+            regulatoryAlerts: 0
           };
         }
       },
@@ -393,7 +446,10 @@ export class AgentDashboardComponent implements OnInit {
         this.dashboardData = {
           totalProducts: 1,
           totalReclamations: 0,
-          lowStockCount: 0
+          lowStockCount: 0,
+          pendingInspections: 0,
+          complianceRate: 0,
+          regulatoryAlerts: 0
         };
       }
     });

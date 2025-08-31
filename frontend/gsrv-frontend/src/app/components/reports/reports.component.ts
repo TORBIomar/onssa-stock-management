@@ -20,6 +20,19 @@ import { ApiService } from '../../services/api.service';
             </button>
           </div>
 
+          <!-- Error and Success Messages -->
+          <div *ngIf="error" class="alert alert-danger alert-dismissible fade show mb-4" role="alert">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            {{ error }}
+            <button type="button" class="btn-close" (click)="error = ''"></button>
+          </div>
+
+          <div *ngIf="success" class="alert alert-success alert-dismissible fade show mb-4" role="alert">
+            <i class="fas fa-check-circle me-2"></i>
+            {{ success }}
+            <button type="button" class="btn-close" (click)="success = ''"></button>
+          </div>
+
           <!-- Filters -->
           <div class="card mb-4">
             <div class="card-body">
@@ -176,8 +189,12 @@ import { ApiService } from '../../services/api.service';
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" (click)="showGenerateReportModal = false">Annuler</button>
             <button type="button" class="btn btn-primary" (click)="generateReport()" [disabled]="!reportForm.valid || generating">
-              <span *ngIf="generating" class="spinner-border spinner-border-sm me-2"></span>
-              {{ generating ? 'Génération...' : 'Générer' }}
+              <span *ngIf="!generating">
+                <i class="fas fa-file-alt me-2"></i>Générer
+              </span>
+              <span *ngIf="generating">
+                <i class="fas fa-spinner fa-spin me-2"></i>Génération en cours...
+              </span>
             </button>
           </div>
         </div>
@@ -269,6 +286,8 @@ export class ReportsComponent implements OnInit {
   showReportDetailsModal = false;
   selectedReport: any = null;
   generating = false;
+  error: string = '';
+  success: string = '';
 
   reportForm!: FormGroup;
 
@@ -351,36 +370,35 @@ export class ReportsComponent implements OnInit {
   }
 
   generateReport() {
-    if (this.reportForm.invalid) {
-      alert('Veuillez remplir tous les champs obligatoires');
-      return;
+    if (this.reportForm.valid) {
+      this.generating = true;
+      this.error = '';
+
+      const reportData = {
+        title: this.reportForm.get('title')?.value,
+        description: this.reportForm.get('description')?.value,
+        status: 'EN_COURS'
+      };
+
+      console.log('Generating report with data:', reportData);
+
+      this.apiService.generateReport(this.reportForm.get('type')?.value, reportData).subscribe({
+        next: (response) => {
+          console.log('Report generated successfully:', response);
+          this.generating = false;
+          this.showGenerateReportModal = false;
+          this.loadReports(); // Refresh the reports list
+          this.success = 'Rapport généré avec succès!';
+          setTimeout(() => this.success = '', 5000);
+        },
+        error: (error) => {
+          console.error('Error generating report:', error);
+          this.generating = false;
+          this.error = this.getErrorMessage(error);
+          setTimeout(() => this.error = '', 10000);
+        }
+      });
     }
-
-    this.generating = true;
-
-    const reportData = {
-      title: this.reportForm.get('title')?.value,
-      description: this.reportForm.get('description')?.value,
-      type: this.reportForm.get('type')?.value,
-      startDate: this.reportForm.get('startDate')?.value,
-      endDate: this.reportForm.get('endDate')?.value
-    };
-
-    this.apiService.generateReport(this.reportForm.get('type')?.value, reportData).subscribe({
-      next: (response) => {
-        alert('Rapport généré avec succès');
-        this.showGenerateReportModal = false;
-        this.loadReports();
-        this.resetForm();
-      },
-      error: (error) => {
-        console.error('Error generating report:', error);
-        alert('Erreur lors de la génération du rapport');
-      },
-      complete: () => {
-        this.generating = false;
-      }
-    });
   }
 
   resetForm() {
@@ -453,5 +471,27 @@ export class ReportsComponent implements OnInit {
       default:
         return status;
     }
+  }
+
+  getErrorMessage(error: any): string {
+    if (error?.error?.message) {
+      return error.error.message;
+    }
+    if (error?.message) {
+      return error.message;
+    }
+    if (error?.status === 403) {
+      return 'Accès refusé. Vous n\'avez pas les permissions nécessaires.';
+    }
+    if (error?.status === 400) {
+      return 'Données invalides. Vérifiez les informations saisies.';
+    }
+    if (error?.status === 404) {
+      return 'Ressource non trouvée.';
+    }
+    if (error?.status === 500) {
+      return 'Erreur serveur. Veuillez réessayer plus tard.';
+    }
+    return 'Erreur lors de la génération du rapport. Veuillez réessayer.';
   }
 }

@@ -164,9 +164,8 @@ import { ApiService } from '../../services/api.service';
                   <div class="mb-3">
                     <label class="form-label">Rôles par défaut</label>
                     <select class="form-select" [(ngModel)]="userSettings.defaultRole">
+                      <option value="ADMIN">Admin</option>
                       <option value="AGENT">Agent</option>
-                      <option value="VETERINAIRE">Vétérinaire</option>
-                      <option value="USER">Utilisateur</option>
                     </select>
                   </div>
                   <div class="mb-3">
