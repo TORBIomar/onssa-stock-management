@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
@@ -331,7 +331,7 @@ export class SettingsComponent implements OnInit {
     maxFileSize: 10
   };
 
-  constructor(private api: ApiService) { }
+  constructor(private api: ApiService, private cdr: ChangeDetectorRef) { }
 
   ngOnInit() {
     this.loadSettings();
@@ -355,6 +355,7 @@ export class SettingsComponent implements OnInit {
         }
       }
     }
+    this.cdr.detectChanges(); // Add this line to detect changes after loading settings
   }
 
   saveAllSettings() {

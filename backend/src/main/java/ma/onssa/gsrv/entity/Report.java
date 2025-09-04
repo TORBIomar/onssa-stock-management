@@ -1,10 +1,12 @@
 package ma.onssa.gsrv.entity;
 
 import jakarta.persistence.*;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "reports")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Report {
     
     @Id

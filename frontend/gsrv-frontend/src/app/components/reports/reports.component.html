@@ -1,0 +1,262 @@
+<div class="container-fluid">
+  <div class="row">
+    <div class="col-12">
+      <!-- Header -->
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-graph-up me-2"></i>Rapports</h2>
+        <button class="btn btn-primary" (click)="openGenerateModal()" *ngIf="isAdmin()">
+          <i class="bi bi-plus me-2"></i>Nouveau Rapport
+        </button>
+      </div>
+
+      <!-- Messages -->
+      <div *ngIf="errorMessage" class="alert alert-danger alert-dismissible fade show mb-4" role="alert">
+        <i class="bi bi-exclamation-triangle me-2"></i>
+        {{ errorMessage }}
+        <button type="button" class="btn-close" (click)="clearMessages()"></button>
+      </div>
+
+      <div *ngIf="successMessage" class="alert alert-success alert-dismissible fade show mb-4" role="alert">
+        <i class="bi bi-check-circle me-2"></i>
+        {{ successMessage }}
+        <button type="button" class="btn-close" (click)="clearMessages()"></button>
+      </div>
+
+      <!-- Filters -->
+      <div class="card mb-4">
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-3">
+              <label class="form-label">Type de rapport</label>
+              <select class="form-select" [(ngModel)]="filters.type" (change)="applyFilters()">
+                <option value="">Tous les types</option>
+                <option value="STOCK">Stock</option>
+                <option value="RECLAMATIONS">Réclamations</option>
+                <option value="UTILISATEURS">Utilisateurs</option>
+                <option value="PERFORMANCE">Performance</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Statut</label>
+              <select class="form-select" [(ngModel)]="filters.status" (change)="applyFilters()">
+                <option value="">Tous les statuts</option>
+                <option value="EN_COURS">En cours</option>
+                <option value="TERMINE">Terminé</option>
+                <option value="ERREUR">Erreur</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Date de début</label>
+              <input type="date" class="form-control" [(ngModel)]="filters.startDate" (change)="applyFilters()">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Date de fin</label>
+              <input type="date" class="form-control" [(ngModel)]="filters.endDate" (change)="applyFilters()">
+            </div>
+          </div>
+          <div class="row mt-3">
+            <div class="col-12">
+              <button class="btn btn-outline-secondary" (click)="clearFilters()">
+                <i class="bi bi-x me-2"></i>Effacer les filtres
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Reports List -->
+      <div class="card">
+        <div class="card-body">
+          <!-- Loading State -->
+          <div *ngIf="loading" class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Chargement...</span>
+            </div>
+            <p class="mt-2 text-muted">Chargement des rapports...</p>
+          </div>
+
+          <!-- Reports Table -->
+          <div *ngIf="!loading" class="table-responsive">
+            <table class="table table-hover">
+              <thead class="table-light">
+                <tr>
+                  <th>ID</th>
+                  <th>Type</th>
+                  <th>Nom</th>
+                  <th>Statut</th>
+                  <th>Créé le</th>
+                  <th>Terminé le</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let report of filteredReports" [class.table-warning]="report.status === 'EN_COURS'">
+                  <td>{{ report.id }}</td>
+                  <td>
+                    <span class="badge" [class]="getTypeClass(report.type)">{{ report.type }}</span>
+                  </td>
+                  <td>{{ report.title }}</td>
+                  <td>
+                    <span class="badge" [class]="getStatusClass(report.status)">
+                      {{ getStatusLabel(report.status) }}
+                    </span>
+                  </td>
+                  <td>{{ formatDate(report.createdAt) }}</td>
+                  <td>{{ formatDate(report.completedAt) }}</td>
+                  <td>
+                    <div class="btn-group btn-group-sm">
+                      <button class="btn btn-outline-primary" 
+                              (click)="viewReport(report)"
+                              [disabled]="report.status !== 'TERMINE'"
+                              title="Voir le rapport">
+                        <i class="bi bi-eye"></i>
+                      </button>
+                      <button class="btn btn-outline-success" 
+                              (click)="downloadReport(report, 'pdf')"
+                              [disabled]="report.status !== 'TERMINE'"
+                              title="Télécharger PDF">
+                        <i class="bi bi-file-pdf"></i>
+                      </button>
+                      <button class="btn btn-outline-info" 
+                              (click)="downloadReport(report, 'excel')"
+                              [disabled]="report.status !== 'TERMINE'"
+                              title="Télécharger Excel">
+                        <i class="bi bi-file-excel"></i>
+                      </button>
+                      <button class="btn btn-outline-danger" 
+                              (click)="deleteReport(report.id)"
+                              *ngIf="isAdmin()"
+                              title="Supprimer">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Empty State -->
+          <div *ngIf="!loading && filteredReports.length === 0" class="text-center py-4">
+            <i class="bi bi-inbox fs-1 text-muted mb-3"></i>
+            <p class="text-muted">Aucun rapport trouvé</p>
+            <button *ngIf="isAdmin()" class="btn btn-primary" (click)="openGenerateModal()">
+              <i class="bi bi-plus me-2"></i>Créer un rapport
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Generate Report Modal -->
+<div class="modal fade" [class.show]="showGenerateModal" [style.display]="showGenerateModal ? 'block' : 'none'">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Générer un nouveau rapport</h5>
+        <button type="button" class="btn-close" (click)="closeGenerateModal()"></button>
+      </div>
+      <div class="modal-body">
+        <form [formGroup]="reportForm">
+          <div class="mb-3">
+            <label class="form-label">Type de rapport *</label>
+            <select class="form-select" formControlName="type">
+              <option value="">Sélectionner un type</option>
+              <option value="STOCK">Stock</option>
+              <option value="RECLAMATIONS">Réclamations</option>
+              <option value="UTILISATEURS">Utilisateurs</option>
+              <option value="PERFORMANCE">Performance</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Titre *</label>
+            <input type="text" class="form-control" formControlName="title" placeholder="Titre du rapport">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Description</label>
+            <textarea class="form-control" formControlName="description" rows="3" placeholder="Description du rapport"></textarea>
+          </div>
+          
+          <!-- Progress indicator -->
+          <div *ngIf="generating" class="mb-3">
+            <div class="progress">
+              <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                   role="progressbar" 
+                   style="width: 100%" 
+                   aria-valuenow="100" 
+                   aria-valuemin="0" 
+                   aria-valuemax="100">
+                Génération en cours...
+              </div>
+            </div>
+            <small class="text-muted">
+              <i class="bi bi-info-circle me-1"></i>
+              La génération peut prendre quelques secondes
+            </small>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" (click)="closeGenerateModal()">Annuler</button>
+        <button type="button" class="btn btn-primary" (click)="generateReport()" [disabled]="!reportForm.valid || generating">
+          <span *ngIf="!generating">
+            <i class="bi bi-file-text me-2"></i>Générer
+          </span>
+          <span *ngIf="generating">
+            <i class="bi bi-arrow-clockwise me-2"></i>Génération en cours...
+          </span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Report Details Modal -->
+<div class="modal fade" [class.show]="showDetailsModal" [style.display]="showDetailsModal ? 'block' : 'none'">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Détails du rapport</h5>
+        <button type="button" class="btn-close" (click)="closeDetailsModal()"></button>
+      </div>
+      <div class="modal-body">
+        <div *ngIf="selectedReport">
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <strong>Type:</strong> 
+              <span class="badge ms-2" [class]="getTypeClass(selectedReport.type)">
+                {{ selectedReport.type }}
+              </span>
+            </div>
+            <div class="col-md-6">
+              <strong>Statut:</strong> 
+              <span class="badge ms-2" [class]="getStatusClass(selectedReport.status)">
+                {{ getStatusLabel(selectedReport.status) }}
+              </span>
+            </div>
+          </div>
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <strong>Créé le:</strong> {{ formatDate(selectedReport.createdAt) }}
+            </div>
+            <div class="col-md-6">
+              <strong>Terminé le:</strong> {{ formatDate(selectedReport.completedAt) }}
+            </div>
+          </div>
+          <div class="mb-3">
+            <strong>Description:</strong>
+            <p class="mt-2">{{ selectedReport.description || 'Aucune description' }}</p>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" (click)="closeDetailsModal()">Fermer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Backdrop -->
+<div class="modal-backdrop fade show" *ngIf="showGenerateModal || showDetailsModal"></div>

@@ -12,6 +12,8 @@ import org.slf4j.LoggerFactory;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
+import ma.onssa.gsrv.dto.ReportListDto;
 
 @Service
 public class ReportService {
@@ -42,6 +44,38 @@ public class ReportService {
 
     public List<Report> listAll() {
         return reportRepository.findAll();
+    }
+
+    public List<ReportListDto> listAllAsDto() {
+        List<Report> reports = reportRepository.findAll();
+        return reports.stream()
+                .map(this::convertToDto)
+                .collect(Collectors.toList());
+    }
+
+    public ReportListDto convertToDto(Report report) {
+        ReportListDto dto = new ReportListDto();
+        dto.id = report.getId();
+        dto.title = report.getTitle();
+        dto.description = report.getDescription();
+        dto.type = report.getType();
+        dto.status = report.getStatus();
+        dto.content = report.getContent();
+        dto.filePath = report.getFilePath();
+        dto.fileFormat = report.getFileFormat();
+        dto.createdAt = report.getCreatedAt();
+        dto.updatedAt = report.getUpdatedAt();
+        dto.generatedAt = report.getGeneratedAt();
+        dto.expiresAt = report.getExpiresAt();
+
+        // Handle the lazy-loaded User association safely
+        if (report.getCreatedBy() != null) {
+            dto.createdByUsername = report.getCreatedBy().getUsername();
+        } else {
+            dto.createdByUsername = "Unknown";
+        }
+
+        return dto;
     }
 
     public Report getById(Long id) {

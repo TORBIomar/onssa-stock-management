@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, OnDestroy } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { Observable, throwError, BehaviorSubject, timer, of, Subject } from 'rxjs';
 import { tap, catchError, retry, timeout, retryWhen, delayWhen, shareReplay, debounceTime, distinctUntilChanged, switchMap, map, filter } from 'rxjs/operators';
@@ -64,12 +64,6 @@ export interface ApiResponse<T> {
   error?: string;
 }
 
-interface CacheEntry<T> {
-  data: T;
-  timestamp: number;
-  ttl: number;
-}
-
 export interface User {
   id: number;
   username: string;
@@ -90,461 +84,229 @@ export interface UserCreateDto {
 @Injectable({
   providedIn: 'root'
 })
-export class ApiService {
+export class ApiService implements OnDestroy {
   private apiBase = 'http://localhost:8082';
-  private loadingSubject = new BehaviorSubject<boolean>(false);
-  public loading$ = this.loadingSubject.asObservable();
-  private retryAttempts = 3;
+  private retryAttempts = 2; // Reduced retry attempts
   private retryDelay = 1000; // 1 second
-  private cache = new Map<string, CacheEntry<any>>();
-  private cacheTTL = 5 * 60 * 1000; // 5 minutes
   private pendingRequests = new Map<string, Observable<any>>();
-  private connectionStatusSubject = new BehaviorSubject<boolean>(true);
-  public connectionStatus$ = this.connectionStatusSubject.asObservable();
+  private destroy$ = new Subject<void>();
 
-  constructor(private http: HttpClient) {
-    this.initializeConnectionMonitoring();
+  // Getter method for API base URL
+  getApiBase(): string {
+    return this.apiBase;
   }
 
-  private initializeConnectionMonitoring(): void {
-    // Monitor connection status
-    timer(0, 30000).pipe(
-      switchMap(() => this.testConnection().pipe(
-        map(() => true),
-        catchError(() => of(false))
-      ))
-    ).subscribe(status => {
-      this.connectionStatusSubject.next(status);
+  // Getter method for headers (for debugging)
+  getHeadersForDebug(): HttpHeaders {
+    return this.getHeaders();
+  }
+
+  constructor(private http: HttpClient) {
+    // Auto-cleanup on destroy
+    this.destroy$.subscribe(() => {
+      this.pendingRequests.clear();
     });
+  }
+
+  ngOnDestroy() {
+    this.destroy$.next();
+    this.destroy$.complete();
+    this.pendingRequests.clear();
   }
 
   private getHeaders(): HttpHeaders {
-    const token = this.getToken();
-    let headers = new HttpHeaders({
+    const headers = new HttpHeaders({
       'Content-Type': 'application/json',
-      'Cache-Control': 'no-cache',
-      'Pragma': 'no-cache'
+      'Accept': 'application/json'
     });
 
-    if (token) {
-      headers = headers.set('Authorization', `Bearer ${token}`);
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        console.log('Using auth token for request');
+        return headers.set('Authorization', `Bearer ${token}`);
+      } else {
+        console.warn('No auth token found in localStorage');
+      }
     }
 
+    console.log('Returning headers without auth token');
     return headers;
   }
 
-  private getCacheKey(endpoint: string, params?: any): string {
-    const paramString = params ? JSON.stringify(params) : '';
-    return `${endpoint}${paramString}`;
-  }
 
-  private getFromCache<T>(key: string): T | null {
-    const entry = this.cache.get(key);
-    if (entry && Date.now() - entry.timestamp < entry.ttl) {
-      return entry.data;
-    }
-    if (entry) {
-      this.cache.delete(key);
-    }
-    return null;
-  }
-
-  private setCache<T>(key: string, data: T, ttl: number = this.cacheTTL): void {
-    this.cache.set(key, {
-      data,
-      timestamp: Date.now(),
-      ttl
-    });
-  }
-
-  private clearCache(pattern?: string): void {
-    if (pattern) {
-      for (const key of this.cache.keys()) {
-        if (key.includes(pattern)) {
-          this.cache.delete(key);
-        }
-      }
-    } else {
-      this.cache.clear();
-    }
-  }
 
   private handleError(error: HttpErrorResponse): Observable<never> {
+    console.error('API Error:', error);
+
     let errorMessage = 'Une erreur inattendue s\'est produite';
 
-    if (typeof ErrorEvent !== 'undefined' && error.error instanceof ErrorEvent) {
+    if (error.error instanceof ErrorEvent) {
       // Client-side error
-      errorMessage = `Erreur client: ${error.error.message}`;
+      errorMessage = error.error.message;
     } else {
       // Server-side error
-      switch (error.status) {
-        case 0:
-          errorMessage = 'Impossible de se connecter au serveur. Vérifiez votre connexion internet.';
-          this.connectionStatusSubject.next(false);
-          break;
-        case 400:
-          errorMessage = 'Données invalides';
-          break;
-        case 401:
-          errorMessage = 'Non autorisé - Veuillez vous reconnecter';
-          this.logout();
-          break;
-        case 403:
-          errorMessage = 'Accès interdit';
-          break;
-        case 404:
-          errorMessage = 'Ressource non trouvée';
-          break;
-        case 409:
-          errorMessage = 'Conflit - La ressource existe déjà';
-          break;
-        case 422:
-          errorMessage = 'Données de validation incorrectes';
-          break;
-        case 429:
-          errorMessage = 'Trop de requêtes - Veuillez patienter';
-          break;
-        case 500:
-          errorMessage = 'Erreur serveur interne';
-          break;
-        case 503:
-          errorMessage = 'Service temporairement indisponible';
-          break;
-        default:
-          errorMessage = `Erreur serveur: ${error.status} - ${error.message}`;
+      if (error.status === 401) {
+        errorMessage = 'Session expirée. Veuillez vous reconnecter.';
+        // Clear invalid token
+        if (typeof window !== 'undefined' && window.localStorage) {
+          localStorage.removeItem('auth_token');
+          localStorage.removeItem('auth_user');
+        }
+      } else if (error.status === 403) {
+        errorMessage = 'Accès non autorisé. Vérifiez vos permissions.';
+      } else if (error.status === 404) {
+        errorMessage = 'Ressource non trouvée.';
+      } else if (error.status === 409) {
+        // Conflict - usually foreign key constraint
+        if (error.error?.message) {
+          errorMessage = error.error.message;
+        } else {
+          errorMessage = 'Cette ressource ne peut pas être supprimée car elle est utilisée ailleurs.';
+        }
+      } else if (error.status === 0) {
+        errorMessage = 'Impossible de se connecter au serveur. Vérifiez votre connexion.';
+      } else if (error.status >= 500) {
+        // Try to get the actual error message from the server response
+        if (error.error?.message) {
+          errorMessage = error.error.message;
+        } else if (error.error?.error) {
+          errorMessage = error.error.error;
+        } else if (error.message) {
+          errorMessage = error.message;
+        } else {
+          errorMessage = 'Erreur serveur. Veuillez réessayer plus tard.';
+        }
+      } else if (error.error?.message) {
+        errorMessage = error.error.message;
+      } else if (error.message) {
+        errorMessage = error.message;
       }
     }
 
-    console.error('API Error:', error);
-    return throwError(() => new Error(errorMessage));
+    return throwError(() => ({ message: errorMessage, status: error.status }));
   }
 
-  private setLoading(loading: boolean): void {
-    // Loading disabled - no longer setting loading state
-    // this.loadingSubject.next(loading);
-  }
-
-  // Retry logic for failed requests with exponential backoff
   private retryStrategy<T>() {
     return retryWhen<T>(errors =>
       errors.pipe(
-        delayWhen((_, index) => timer(Math.min(1000 * Math.pow(2, index), 10000))),
-        retry(this.retryAttempts)
+        switchMap((error, index) => {
+          if (index < this.retryAttempts) {
+            return timer(this.retryDelay * (index + 1));
+          }
+          return throwError(() => error);
+        })
       )
     );
   }
 
-  // Request deduplication
   private deduplicateRequest<T>(key: string, request: Observable<T>): Observable<T> {
     if (this.pendingRequests.has(key)) {
-      return this.pendingRequests.get(key)!;
+      return this.pendingRequests.get(key)! as Observable<T>;
     }
 
     const sharedRequest = request.pipe(
       shareReplay(1),
-      tap(() => this.pendingRequests.delete(key))
+      tap(() => this.pendingRequests.delete(key)),
+      catchError(error => {
+        this.pendingRequests.delete(key);
+        return throwError(() => error);
+      })
     );
 
     this.pendingRequests.set(key, sharedRequest);
     return sharedRequest;
   }
 
-  // Auth methods
-  login(payload: LoginRequest): Observable<LoginResponse> {
-    this.setLoading(true);
-    const request = this.http.post<LoginResponse>(`${this.apiBase}/auth/login`, payload).pipe(
-      timeout(10000), // 10 second timeout
-      tap(res => {
-        if (res?.token && typeof localStorage !== 'undefined') {
-          localStorage.setItem('auth_token', res.token);
-          localStorage.setItem('auth_user', JSON.stringify({
-            username: res.username,
-            role: res.role,
-            userId: res.userId
-          }));
-          this.clearCache(); // Clear cache on login
-        }
-        this.setLoading(false);
-      }),
-      catchError(error => {
-        console.error('Login error:', error);
-        this.setLoading(false);
-        return this.handleError(error);
-      })
-    );
-
-    return this.deduplicateRequest('login', request);
+  private getCacheKey(endpoint: string): string {
+    return `cache_${endpoint}`;
   }
 
-  register(payload: RegisterRequest): Observable<ApiResponse<any>> {
-    this.setLoading(true);
-    return this.http.post<ApiResponse<any>>(`${this.apiBase}/users`, payload).pipe(
-      timeout(15000),
-      tap(() => {
-        this.setLoading(false);
-        this.clearCache('users');
-      }),
-      catchError(error => {
-        this.setLoading(false);
-        return this.handleError(error);
-      })
-    );
-  }
-
-  logout(): void {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('auth_user');
-    }
-    this.clearCache();
-    this.pendingRequests.clear();
-  }
-
-  getToken(): string | null {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      return localStorage.getItem('auth_token');
-    }
-    return null;
-  }
-
-  isAuthenticated(): boolean {
-    const token = this.getToken();
-    if (!token) return false;
-
-    try {
-      // Basic token validation (you might want to add JWT expiration check)
-      return token.length > 10;
-    } catch {
-      return false;
-    }
-  }
-
-  // Health check methods with retry logic
-  testConnection(): Observable<any> {
-    return this.http.get(`${this.apiBase}/health`).pipe(
+  // Test products endpoint specifically
+  testProductsEndpoint(): Observable<any> {
+    return this.http.get(`${this.apiBase}/products/test`, { headers: this.getHeaders() }).pipe(
       timeout(5000),
       catchError(error => {
-        console.warn('Connection test failed:', error);
-        return of({ status: 'DOWN' });
+        console.error('Products endpoint test failed:', error);
+        return throwError(() => error);
       })
     );
   }
 
-  testHealth(): Observable<any> {
-    return this.http.get(`${this.apiBase}/health/simple`).pipe(
+  // Health check method
+  testBackendHealth(): Observable<any> {
+    return this.http.get(`${this.apiBase}/health/simple`, { headers: this.getHeaders() }).pipe(
       timeout(5000),
       catchError(error => {
-        console.warn('Health test failed:', error);
-        return of({ status: 'DOWN' });
+        console.error('Health check failed:', error);
+        return throwError(() => error);
       })
     );
   }
 
-  getData(): Observable<any> {
-    const cacheKey = this.getCacheKey('data');
-    const cached = this.getFromCache(cacheKey);
-
-    if (cached) {
-      return of(cached);
-    }
-
-    this.setLoading(true);
-    const request = this.http.get(`${this.apiBase}/api/data`, { headers: this.getHeaders() }).pipe(
-      timeout(10000),
-      this.retryStrategy<any>(),
-      tap(data => {
-        this.setCache(cacheKey, data, 2 * 60 * 1000); // 2 minutes cache
-        this.setLoading(false);
-      }),
-      catchError(error => {
-        this.setLoading(false);
-        return this.handleError(error);
-      })
-    );
-
-    return this.deduplicateRequest(cacheKey, request);
-  }
-
-  getStock(): Observable<any> {
-    const cacheKey = this.getCacheKey('stock');
-    const cached = this.getFromCache(cacheKey);
-
-    if (cached) {
-      return of(cached);
-    }
-
-    this.setLoading(true);
-    const request = this.http.get(`${this.apiBase}/api/stock`, { headers: this.getHeaders() }).pipe(
-      timeout(10000),
-      this.retryStrategy<any>(),
-      tap(data => {
-        this.setCache(cacheKey, data, 5 * 60 * 1000); // 5 minutes cache
-        this.setLoading(false);
-      }),
-      catchError(error => {
-        this.setLoading(false);
-        return this.handleError(error);
-      })
-    );
-
-    return this.deduplicateRequest(cacheKey, request);
-  }
-
-  getClaims(): Observable<any> {
-    const cacheKey = this.getCacheKey('claims');
-    const cached = this.getFromCache(cacheKey);
-
-    if (cached) {
-      return of(cached);
-    }
-
-    this.setLoading(true);
-    const request = this.http.get(`${this.apiBase}/api/claims`, { headers: this.getHeaders() }).pipe(
-      timeout(10000),
-      this.retryStrategy<any>(),
-      tap(data => {
-        this.setCache(cacheKey, data, 3 * 60 * 1000); // 3 minutes cache
-        this.setLoading(false);
-      }),
-      catchError(error => {
-        this.setLoading(false);
-        return this.handleError(error);
-      })
-    );
-
-    return this.deduplicateRequest(cacheKey, request);
-  }
-
-  // Product methods with caching
+  // Optimized product methods without caching
   listProducts(): Observable<ProductPayload[]> {
-    const cacheKey = this.getCacheKey('products');
-    const cached = this.getFromCache<ProductPayload[]>(cacheKey);
-
-    if (cached) {
-      return of(cached);
-    }
-
-    this.setLoading(true);
-    const request = this.http.get<ProductPayload[]>(`${this.apiBase}/products`, { headers: this.getHeaders() }).pipe(
-      timeout(15000),
+    return this.http.get<ProductPayload[]>(`${this.apiBase}/products`, { headers: this.getHeaders() }).pipe(
+      timeout(8000), // Reduced timeout
       this.retryStrategy<ProductPayload[]>(),
-      tap(data => {
-        this.setCache(cacheKey, data, 10 * 60 * 1000); // 10 minutes cache
-        this.setLoading(false);
-      }),
       catchError(error => {
-        this.setLoading(false);
         return this.handleError(error);
       })
     );
-
-    return this.deduplicateRequest(cacheKey, request);
   }
 
   getProduct(id: number): Observable<ProductPayload> {
-    const cacheKey = this.getCacheKey(`product-${id}`);
-    const cached = this.getFromCache<ProductPayload>(cacheKey);
-
-    if (cached) {
-      return of(cached);
-    }
-
-    this.setLoading(true);
-    const request = this.http.get<ProductPayload>(`${this.apiBase}/products/${id}`, { headers: this.getHeaders() }).pipe(
-      timeout(10000),
+    return this.http.get<ProductPayload>(`${this.apiBase}/products/${id}`, { headers: this.getHeaders() }).pipe(
+      timeout(5000),
       this.retryStrategy<ProductPayload>(),
-      tap(data => {
-        this.setCache(cacheKey, data, 15 * 60 * 1000); // 15 minutes cache
-        this.setLoading(false);
-      }),
       catchError(error => {
-        this.setLoading(false);
         return this.handleError(error);
       })
     );
-
-    return this.deduplicateRequest(cacheKey, request);
   }
 
   createProduct(payload: ProductPayload): Observable<ApiResponse<ProductPayload>> {
-    this.setLoading(true);
     return this.http.post<ApiResponse<ProductPayload>>(`${this.apiBase}/products`, payload, { headers: this.getHeaders() }).pipe(
-      timeout(15000),
+      timeout(10000), // Increased timeout for creation
       this.retryStrategy<ApiResponse<ProductPayload>>(),
-      tap(() => {
-        this.setLoading(false);
-        this.clearCache('products'); // Clear product cache
-      }),
       catchError(error => {
-        this.setLoading(false);
         return this.handleError(error);
       })
     );
   }
 
   updateProduct(id: number, payload: ProductPayload): Observable<ApiResponse<ProductPayload>> {
-    this.setLoading(true);
     return this.http.put<ApiResponse<ProductPayload>>(`${this.apiBase}/products/${id}`, payload, { headers: this.getHeaders() }).pipe(
-      timeout(15000),
+      timeout(10000), // Increased timeout for updates
       this.retryStrategy<ApiResponse<ProductPayload>>(),
-      tap(() => {
-        this.setLoading(false);
-        this.clearCache('products'); // Clear product cache
-        this.cache.delete(`product-${id}`); // Clear specific product cache
-      }),
       catchError(error => {
-        this.setLoading(false);
         return this.handleError(error);
       })
     );
   }
 
   deleteProduct(id: number): Observable<ApiResponse<void>> {
-    this.setLoading(true);
     return this.http.delete<ApiResponse<void>>(`${this.apiBase}/products/${id}`, { headers: this.getHeaders() }).pipe(
-      timeout(10000),
+      timeout(8000),
       this.retryStrategy<ApiResponse<void>>(),
-      tap(() => {
-        this.setLoading(false);
-        this.clearCache('products'); // Clear product cache
-        this.cache.delete(`product-${id}`); // Clear specific product cache
-      }),
       catchError(error => {
-        this.setLoading(false);
         return this.handleError(error);
       })
     );
   }
 
-  // Reclamation methods with caching
+  // Optimized reclamation methods
   listReclamations(): Observable<any[]> {
-    const cacheKey = this.getCacheKey('reclamations');
-    const cached = this.getFromCache<any[]>(cacheKey);
-
-    if (cached) {
-      return of(cached);
-    }
-
-    this.setLoading(true);
-    const request = this.http.get<any[]>(`${this.apiBase}/reclamations`, { headers: this.getHeaders() }).pipe(
-      timeout(15000),
+    return this.http.get<any[]>(`${this.apiBase}/reclamations`, { headers: this.getHeaders() }).pipe(
+      timeout(8000),
       this.retryStrategy<any[]>(),
-      tap(data => {
-        this.setCache(cacheKey, data, 5 * 60 * 1000); // 5 minutes cache
-        this.setLoading(false);
-      }),
       catchError(error => {
-        this.setLoading(false);
         return this.handleError(error);
       })
     );
-
-    return this.deduplicateRequest(cacheKey, request);
   }
 
   createReclamation(payload: ReclamationPayload): Observable<ApiResponse<any>> {
-    this.setLoading(true);
-
     // Convert to backend DTO format
     const backendDto: ReclamationCreateDto = {
       titre: payload.titre,
@@ -555,429 +317,291 @@ export class ApiService {
     };
 
     return this.http.post<ApiResponse<any>>(`${this.apiBase}/reclamations`, backendDto, { headers: this.getHeaders() }).pipe(
-      timeout(15000),
+      timeout(10000),
       this.retryStrategy<ApiResponse<any>>(),
-      tap(() => {
-        this.setLoading(false);
-        this.clearCache('reclamations'); // Clear reclamation cache
-      }),
       catchError(error => {
-        this.setLoading(false);
         return this.handleError(error);
       })
     );
   }
 
   updateReclamationStatus(id: number, status: 'OUVERTE' | 'EN_COURS' | 'TRAITEE' | 'REJETEE'): Observable<ApiResponse<any>> {
-    this.setLoading(true);
     return this.http.patch<ApiResponse<any>>(`${this.apiBase}/reclamations/${id}/status`, null, {
       headers: this.getHeaders(),
       params: { status }
     }).pipe(
-      timeout(10000),
+      timeout(8000),
       this.retryStrategy<ApiResponse<any>>(),
-      tap(() => {
-        this.setLoading(false);
-        this.clearCache('reclamations'); // Clear reclamation cache
-      }),
       catchError(error => {
-        this.setLoading(false);
         return this.handleError(error);
       })
     );
   }
 
   deleteReclamation(id: number): Observable<ApiResponse<void>> {
-    this.setLoading(true);
     return this.http.delete<ApiResponse<void>>(`${this.apiBase}/reclamations/${id}`, { headers: this.getHeaders() }).pipe(
-      timeout(10000),
+      timeout(8000),
       this.retryStrategy<ApiResponse<void>>(),
-      tap(() => {
-        this.setLoading(false);
-        this.clearCache('reclamations'); // Clear reclamation cache
-      }),
       catchError(error => {
-        this.setLoading(false);
         return this.handleError(error);
       })
     );
   }
 
-  // User methods with caching
+  // Optimized user methods
   listUsers(): Observable<any[]> {
-    const cacheKey = this.getCacheKey('users');
-    const cached = this.getFromCache<any[]>(cacheKey);
-
-    if (cached) {
-      return of(cached);
-    }
-
-    this.setLoading(true);
-    const request = this.http.get<any[]>(`${this.apiBase}/users`, { headers: this.getHeaders() }).pipe(
-      timeout(15000),
+    return this.http.get<any[]>(`${this.apiBase}/users`, { headers: this.getHeaders() }).pipe(
+      timeout(8000),
       this.retryStrategy<any[]>(),
-      tap(data => {
-        this.setCache(cacheKey, data, 15 * 60 * 1000); // 15 minutes cache
-        this.setLoading(false);
-      }),
       catchError(error => {
-        this.setLoading(false);
-        return this.handleError(error);
-      })
-    );
-
-    return this.deduplicateRequest(cacheKey, request);
-  }
-
-  createUser(payload: RegisterRequest): Observable<ApiResponse<any>> {
-    this.setLoading(true);
-    return this.http.post<ApiResponse<any>>(`${this.apiBase}/users`, payload, { headers: this.getHeaders() }).pipe(
-      timeout(15000),
-      this.retryStrategy<ApiResponse<any>>(),
-      tap(() => {
-        this.setLoading(false);
-        this.clearCache('users'); // Clear user cache
-      }),
-      catchError(error => {
-        this.setLoading(false);
         return this.handleError(error);
       })
     );
   }
 
-  updateUser(id: number, payload: Partial<RegisterRequest>): Observable<ApiResponse<any>> {
-    this.setLoading(true);
-    return this.http.put<ApiResponse<any>>(`${this.apiBase}/users/${id}`, payload, { headers: this.getHeaders() }).pipe(
-      timeout(15000),
-      this.retryStrategy<ApiResponse<any>>(),
-      tap(() => {
-        this.setLoading(false);
-        this.clearCache('users'); // Clear user cache
-      }),
+  createUser(payload: UserCreateDto): Observable<ApiResponse<User>> {
+    return this.http.post<ApiResponse<User>>(`${this.apiBase}/users`, payload, { headers: this.getHeaders() }).pipe(
+      timeout(10000),
+      this.retryStrategy<ApiResponse<User>>(),
       catchError(error => {
-        this.setLoading(false);
+        return this.handleError(error);
+      })
+    );
+  }
+
+  updateUser(id: number, payload: Partial<UserCreateDto>): Observable<ApiResponse<User>> {
+    return this.http.put<ApiResponse<User>>(`${this.apiBase}/users/${id}`, payload, { headers: this.getHeaders() }).pipe(
+      timeout(10000),
+      this.retryStrategy<ApiResponse<User>>(),
+      catchError(error => {
         return this.handleError(error);
       })
     );
   }
 
   deleteUser(id: number): Observable<ApiResponse<void>> {
-    this.setLoading(true);
     return this.http.delete<ApiResponse<void>>(`${this.apiBase}/users/${id}`, { headers: this.getHeaders() }).pipe(
-      timeout(10000),
+      timeout(8000),
       this.retryStrategy<ApiResponse<void>>(),
-      tap(() => {
-        this.setLoading(false);
-        this.clearCache('users'); // Clear user cache
-      }),
       catchError(error => {
-        this.setLoading(false);
         return this.handleError(error);
       })
     );
   }
 
-  toggleUserStatus(id: number): Observable<ApiResponse<any>> {
-    this.setLoading(true);
-    return this.http.patch<ApiResponse<any>>(`${this.apiBase}/users/${id}/toggle-status`, {}, { headers: this.getHeaders() }).pipe(
+  // Authentication methods
+  login(credentials: LoginRequest): Observable<LoginResponse> {
+    return this.http.post<LoginResponse>(`${this.apiBase}/auth/login`, credentials).pipe(
+      timeout(8000),
+      this.retryStrategy<LoginResponse>(),
+      tap(response => {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          localStorage.setItem('auth_token', response.token);
+          localStorage.setItem('auth_user', JSON.stringify({
+            username: response.username,
+            role: response.role,
+            userId: response.userId
+          }));
+        }
+      }),
+      catchError(error => {
+        return this.handleError(error);
+      })
+    );
+  }
+
+  register(userData: RegisterRequest): Observable<ApiResponse<any>> {
+    return this.http.post<ApiResponse<any>>(`${this.apiBase}/auth/register`, userData).pipe(
       timeout(10000),
       this.retryStrategy<ApiResponse<any>>(),
-      tap(() => {
-        this.setLoading(false);
-        this.clearCache('users'); // Clear user cache
-      }),
       catchError(error => {
-        this.setLoading(false);
         return this.handleError(error);
       })
     );
   }
 
-  resetUserPassword(id: number, newPassword: string): Observable<ApiResponse<any>> {
-    this.setLoading(true);
-    return this.http.patch<ApiResponse<any>>(`${this.apiBase}/users/${id}/reset-password`, { newPassword }, { headers: this.getHeaders() }).pipe(
-      timeout(10000),
-      this.retryStrategy<ApiResponse<any>>(),
-      tap(() => {
-        this.setLoading(false);
-        this.clearCache('users'); // Clear user cache
-      }),
-      catchError(error => {
-        this.setLoading(false);
-        return this.handleError(error);
-      })
-    );
-  }
-
-  // Dashboard methods with caching
-  getDashboardData(): Observable<any> {
-    const cacheKey = this.getCacheKey('dashboard');
-    const cached = this.getFromCache(cacheKey);
-
-    if (cached) {
-      return of(cached);
+  logout(): void {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_user');
     }
-
-    this.setLoading(true);
-    const request = this.http.get<any>(`${this.apiBase}/dashboard`, { headers: this.getHeaders() }).pipe(
-      timeout(10000),
-      this.retryStrategy<any>(),
-      tap(data => {
-        this.setCache(cacheKey, data, 2 * 60 * 1000); // 2 minutes cache
-        this.setLoading(false);
-      }),
-      catchError(error => {
-        console.error('Dashboard endpoint error:', error);
-        this.setLoading(false);
-        // Return default dashboard data if endpoint fails
-        return of({
-          totalUsers: 1,
-          totalProducts: 1,
-          totalReclamations: 0,
-          lowStockCount: 0,
-          recentActivity: [],
-          systemStatus: 'OK'
-        });
-      })
-    );
-
-    return this.deduplicateRequest(cacheKey, request);
   }
 
-  // Analytics methods with caching
-  getAnalytics(): Observable<any> {
-    const cacheKey = this.getCacheKey('analytics');
-    const cached = this.getFromCache(cacheKey);
-
-    if (cached) {
-      return of(cached);
+  isAuthenticated(): boolean {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      return !!localStorage.getItem('auth_token');
     }
-
-    this.setLoading(true);
-    const request = this.http.get<any>(`${this.apiBase}/analytics`, { headers: this.getHeaders() }).pipe(
-      timeout(20000),
-      this.retryStrategy<any>(),
-      tap(data => {
-        this.setCache(cacheKey, data, 30 * 60 * 1000); // 30 minutes cache
-        this.setLoading(false);
-      }),
-      catchError(error => {
-        this.setLoading(false);
-        return this.handleError(error);
-      })
-    );
-
-    return this.deduplicateRequest(cacheKey, request);
+    return false;
   }
 
-  getStockAnalytics(): Observable<any> {
-    const cacheKey = this.getCacheKey('analytics-stock');
-    const cached = this.getFromCache(cacheKey);
-
-    if (cached) {
-      return of(cached);
-    }
-
-    return this.http.get<any>(`${this.apiBase}/analytics/stock`, { headers: this.getHeaders() }).pipe(
-      tap(data => this.setCache(cacheKey, data, 30 * 60 * 1000))
-    );
-  }
-
-  getReclamationAnalytics(): Observable<any> {
-    const cacheKey = this.getCacheKey('analytics-reclamations');
-    const cached = this.getFromCache(cacheKey);
-
-    if (cached) {
-      return of(cached);
-    }
-
-    return this.http.get<any>(`${this.apiBase}/analytics/reclamations`, { headers: this.getHeaders() }).pipe(
-      tap(data => this.setCache(cacheKey, data, 30 * 60 * 1000))
-    );
-  }
-
-  getUserAnalytics(): Observable<any> {
-    const cacheKey = this.getCacheKey('analytics-users');
-    const cached = this.getFromCache(cacheKey);
-
-    if (cached) {
-      return of(cached);
-    }
-
-    return this.http.get<any>(`${this.apiBase}/analytics/users`, { headers: this.getHeaders() }).pipe(
-      tap(data => this.setCache(cacheKey, data, 30 * 60 * 1000))
-    );
-  }
-
-  getPerformanceAnalytics(): Observable<any> {
-    const cacheKey = this.getCacheKey('analytics-performance');
-    const cached = this.getFromCache(cacheKey);
-
-    if (cached) {
-      return of(cached);
-    }
-
-    return this.http.get<any>(`${this.apiBase}/analytics/performance`, { headers: this.getHeaders() }).pipe(
-      tap(data => this.setCache(cacheKey, data, 30 * 60 * 1000))
-    );
-  }
-
-  generateReport(reportType: string, filters: any = {}): Observable<any> {
-    console.log('🚀 API Service - generateReport called with:', { reportType, filters });
-    console.log('🚀 API Service - Full URL:', `${this.apiBase}/reports/type/${reportType}/generate`);
-    console.log('🚀 API Service - Headers:', this.getHeaders());
-
-    return this.http.post<any>(`${this.apiBase}/reports/type/${reportType}/generate`, filters, { headers: this.getHeaders() })
-      .pipe(
-        tap(response => console.log('✅ API Service - Response received:', response)),
-        timeout(30000), // 30 second timeout
-        catchError(error => {
-          console.error('❌ API Service - Error occurred:', error);
-          if (error.name === 'TimeoutError') {
-            return throwError(() => new Error('La génération du rapport a pris trop de temps. Veuillez réessayer.'));
-          }
-          return throwError(() => error);
-        })
-      );
-  }
-
-  // Report methods
-  getAllReports(): Observable<any> {
-    const cacheKey = this.getCacheKey('reports');
-    const cached = this.getFromCache(cacheKey);
-
-    if (cached) {
-      return of(cached);
-    }
-
-    return this.http.get<any>(`${this.apiBase}/reports`, { headers: this.getHeaders() }).pipe(
-      tap(data => this.setCache(cacheKey, data, 10 * 60 * 1000))
-    );
-  }
-
-  getReport(reportType: string, filters: any = {}): Observable<any> {
-    const params = new URLSearchParams();
-    Object.keys(filters).forEach(key => {
-      if (filters[key] !== null && filters[key] !== undefined) {
-        params.append(key, filters[key].toString());
-      }
-    });
-
-    return this.http.get<any>(`${this.apiBase}/reports/${reportType}?${params.toString()}`, { headers: this.getHeaders() });
-  }
-
-  downloadReportAsPDF(reportType: string, filters: any = {}): Observable<Blob> {
-    const params = new URLSearchParams();
-    Object.keys(filters).forEach(key => {
-      if (filters[key] !== null && filters[key] !== undefined) {
-        params.append(key, filters[key].toString());
-      }
-    });
-
-    return this.http.get(`${this.apiBase}/reports/${reportType}/download/pdf?${params.toString()}`, {
-      headers: this.getHeaders(),
-      responseType: 'blob'
-    });
-  }
-
-  downloadReportAsExcel(reportType: string, filters: any = {}): Observable<Blob> {
-    const params = new URLSearchParams();
-    Object.keys(filters).forEach(key => {
-      if (filters[key] !== null && filters[key] !== undefined) {
-        params.append(key, filters[key].toString());
-      }
-    });
-
-    return this.http.get(`${this.apiBase}/reports/${reportType}/download/excel?${params.toString()}`, {
-      headers: this.getHeaders(),
-      responseType: 'blob'
-    });
-  }
-
-  downloadReportAsCSV(reportType: string, filters: any = {}): Observable<Blob> {
-    const params = new URLSearchParams();
-    Object.keys(filters).forEach(key => {
-      if (filters[key] !== null && filters[key] !== undefined) {
-        params.append(key, filters[key].toString());
-      }
-    });
-
-    return this.http.get(`${this.apiBase}/reports/${reportType}/download/csv?${params.toString()}`, {
-      headers: this.getHeaders(),
-      responseType: 'blob'
-    });
-  }
-
-  downloadReport(reportType: string, format: string, filters: any = {}): Observable<Blob> {
-    const params = new URLSearchParams();
-    Object.keys(filters).forEach(key => {
-      if (filters[key] !== null && filters[key] !== undefined) {
-        params.append(key, filters[key].toString());
-      }
-    });
-
-    return this.http.get(`${this.apiBase}/reports/${reportType}/download/${format}?${params.toString()}`, {
-      headers: this.getHeaders(),
-      responseType: 'blob'
-    });
-  }
-
-  deleteReport(reportId: number): Observable<any> {
-    return this.http.delete<any>(`${this.apiBase}/reports/${reportId}`, { headers: this.getHeaders() }).pipe(
-      tap(() => this.clearCache('reports'))
-    );
-  }
-
-  // Utility methods
   getCurrentUser(): any {
-    if (typeof localStorage === 'undefined') {
-      return null;
-    }
-
-    const userStr = localStorage.getItem('auth_user');
-    if (userStr) {
-      try {
-        return JSON.parse(userStr);
-      } catch {
-        return null;
-      }
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const userStr = localStorage.getItem('auth_user');
+      return userStr ? JSON.parse(userStr) : null;
     }
     return null;
   }
 
-  hasRole(role: string): boolean {
-    const user = this.getCurrentUser();
-    return user && user.role === role;
+  // Dashboard data method
+  getData(): Observable<any> {
+    return this.http.get<any>(`${this.apiBase}/dashboard`, { headers: this.getHeaders() }).pipe(
+      timeout(8000),
+      this.retryStrategy<any>(),
+      catchError(error => {
+        return this.handleError(error);
+      })
+    );
   }
 
-  isAdmin(): boolean {
-    return this.hasRole('ADMIN');
+  // Analytics data method
+  getAnalytics(): Observable<any> {
+    return this.http.get<any>(`${this.apiBase}/analytics`, { headers: this.getHeaders() }).pipe(
+      timeout(8000),
+      this.retryStrategy<any>(),
+      catchError(error => {
+        return this.handleError(error);
+      })
+    );
   }
 
-  isAgent(): boolean {
-    return this.hasRole('AGENT');
+  // Report generation method
+  generateReport(type: string, params?: any): Observable<any> {
+    const url = `${this.apiBase}/reports/type/${type}/generate`;
+    const options: any = { headers: this.getHeaders() };
+
+    if (params) {
+      options.body = params; // Use body for POST request
+    }
+
+    return this.http.post<any>(url, params || {}, options).pipe(
+      timeout(15000), // Longer timeout for reports
+      this.retryStrategy<any>(),
+      catchError(error => {
+        return this.handleError(error);
+      })
+    );
   }
 
-  isVeterinaire(): boolean {
-    return this.hasRole('AGENT'); // Redirect veterinarian functionality to agent
+  // Task management methods
+  listTasks(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiBase}/tasks`, { headers: this.getHeaders() }).pipe(
+      timeout(8000),
+      this.retryStrategy<any[]>(),
+      catchError(error => {
+        return this.handleError(error);
+      })
+    );
   }
 
-  // Cache management methods
-  clearAllCache(): void {
-    this.cache.clear();
+  createTask(payload: any): Observable<ApiResponse<any>> {
+    return this.http.post<ApiResponse<any>>(`${this.apiBase}/tasks`, payload, { headers: this.getHeaders() }).pipe(
+      timeout(10000),
+      this.retryStrategy<ApiResponse<any>>(),
+      catchError(error => {
+        return this.handleError(error);
+      })
+    );
   }
 
-  getCacheStats(): { size: number; keys: string[] } {
-    return {
-      size: this.cache.size,
-      keys: Array.from(this.cache.keys())
+  updateTask(id: number, payload: any): Observable<ApiResponse<any>> {
+    return this.http.put<ApiResponse<any>>(`${this.apiBase}/tasks/${id}`, payload, { headers: this.getHeaders() }).pipe(
+      timeout(10000),
+      this.retryStrategy<ApiResponse<any>>(),
+      catchError(error => {
+        return this.handleError(error);
+      })
+    );
+  }
+
+  deleteTask(id: number): Observable<ApiResponse<void>> {
+    return this.http.delete<ApiResponse<void>>(`${this.apiBase}/tasks/${id}`, { headers: this.getHeaders() }).pipe(
+      timeout(8000),
+      this.retryStrategy<ApiResponse<void>>(),
+      catchError(error => {
+        return this.handleError(error);
+      })
+    );
+  }
+
+  // Report management methods
+  getAllReports(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiBase}/reports`, { headers: this.getHeaders() }).pipe(
+      timeout(8000),
+      this.retryStrategy<any[]>(),
+      catchError(error => {
+        // Log error but don't clutter console with Hibernate proxy errors
+        if (error.status === 500 && error.message?.includes('ByteBuddyInterceptor')) {
+          console.warn('Reports service temporarily unavailable');
+        } else {
+          console.error('Error fetching reports:', error);
+        }
+        return this.handleError(error);
+      })
+    );
+  }
+
+  deleteReport(reportId: number): Observable<ApiResponse<void>> {
+    return this.http.delete<ApiResponse<void>>(`${this.apiBase}/reports/${reportId}`, { headers: this.getHeaders() }).pipe(
+      timeout(8000),
+      this.retryStrategy<ApiResponse<void>>(),
+      catchError(error => {
+        return this.handleError(error);
+      })
+    );
+  }
+
+  downloadReport(type: string, format: string, params?: any): Observable<Blob> {
+    const url = `${this.apiBase}/reports/${type}/download/${format}`;
+    const options: any = {
+      headers: this.getHeaders(),
+      responseType: 'blob'
     };
+
+    if (params) {
+      options.params = new HttpParams({ fromObject: params });
+    }
+
+    return this.http.get(url, options).pipe(
+      timeout(15000),
+      catchError(error => {
+        return this.handleError(error);
+      })
+    ) as unknown as Observable<Blob>;
   }
 
-  // Connection status methods
-  isConnected(): boolean {
-    return this.connectionStatusSubject.value;
+  // Backend status methods
+  testConnection(): Observable<any> {
+    return this.http.get<any>(`${this.apiBase}/health`, { headers: this.getHeaders() }).pipe(
+      timeout(5000),
+      this.retryStrategy<any>(),
+      catchError(error => {
+        return this.handleError(error);
+      })
+    );
   }
 
+  getStock(): Observable<any> {
+    return this.http.get<any>(`${this.apiBase}/products/stock`, { headers: this.getHeaders() }).pipe(
+      timeout(8000),
+      this.retryStrategy<any>(),
+      catchError(error => {
+        return this.handleError(error);
+      })
+    );
+  }
 
+  getClaims(): Observable<any> {
+    return this.http.get<any>(`${this.apiBase}/reclamations/summary`, { headers: this.getHeaders() }).pipe(
+      timeout(8000),
+      this.retryStrategy<any>(),
+      catchError(error => {
+        return this.handleError(error);
+      })
+    );
+  }
+
+  // Dashboard data method (alias for getData)
+  getDashboardData(): Observable<any> {
+    return this.getData();
+  }
 }

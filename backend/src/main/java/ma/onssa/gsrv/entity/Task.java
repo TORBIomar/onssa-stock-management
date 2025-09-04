@@ -1,7 +1,12 @@
 package ma.onssa.gsrv.entity;
 
 import jakarta.persistence.*;
+import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import ma.onssa.gsrv.config.LocalDateTimeDeserializer;
+
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "tasks")
@@ -25,7 +30,9 @@ public class Task {
     @Column(nullable = false)
     private TaskPriority priority;
 
-    @Column(nullable = false)
+    @Column(name = "due_date", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    @JsonDeserialize(using = LocalDateTimeDeserializer.class)
     private LocalDateTime dueDate;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -37,12 +44,15 @@ public class Task {
     private User createdBy;
 
     @Column(nullable = false)
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime createdAt;
 
     @Column
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime updatedAt;
 
     @Column
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime completedAt;
 
     // Constructors
@@ -50,6 +60,7 @@ public class Task {
         this.createdAt = LocalDateTime.now();
         this.status = TaskStatus.A_FAIRE;
         this.priority = TaskPriority.MEDIUM;
+        this.dueDate = LocalDateTime.now().toLocalDate().atStartOfDay(); // Set default due date to today at 00:00:00
     }
 
     // Getters and Setters

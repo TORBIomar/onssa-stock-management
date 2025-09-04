@@ -1,225 +1,308 @@
-# GSRV System - Gestion des Stocks et Réclamations Vétérinaires
+# 🏥 ONSSA SM - Système de Gestion
 
-Un système complet de gestion des stocks et des réclamations pour l'ONSSA (Office National de Sécurité Sanitaire des Produits Alimentaires).
+**Office National de Sécurité Sanitaire des Produits Alimentaires - Système de Management**
 
-## 🚀 Fonctionnalités principales
+Un système complet de gestion pour l'Office National de Sécurité Sanitaire des Produits Alimentaires (ONSSA), développé avec Angular et Spring Boot.
 
-### 1. Gestion des Utilisateurs
-- ✅ Ajouter / modifier / supprimer un utilisateur
-- ✅ Attribution des rôles (Admin, Agent ONSSA, Vétérinaire)
-- ✅ Authentification sécurisée avec JWT
-- ✅ Gestion des accès et permissions
+## 📋 Table des Matières
 
-### 2. Gestion du Stock
-- ✅ Ajouter un produit (vaccin, médicament, aliment animal, etc.)
-- ✅ Modifier / supprimer un produit
-- ✅ Consultation de la liste des produits en stock
-- ✅ Alertes automatiques pour stock critique
-- ✅ Recherche et filtrage avancés
-- ✅ Gestion des dates de péremption
+- [Description](#description)
+- [Fonctionnalités](#fonctionnalités)
+- [Architecture](#architecture)
+- [Prérequis](#prérequis)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Utilisation](#utilisation)
+- [API Documentation](#api-documentation)
+- [Structure du Projet](#structure-du-projet)
+- [Diagrammes UML](#diagrammes-uml)
+- [Contribution](#contribution)
+- [Licence](#licence)
 
-### 3. Gestion des Réclamations
-- ✅ Créer une réclamation pour produit manquant/insuffisant
-- ✅ Consultation de l'historique des réclamations
-- ✅ Suivi du statut (En attente, En cours, Traitée, Rejetée)
-- ✅ Traitement des réclamations par les administrateurs
+## 🎯 Description
 
-### 4. Tableau de Bord et Alertes
-- ✅ Vue d'ensemble en temps réel
-- ✅ Statistiques détaillées
-- ✅ Alertes automatiques pour stock critique
-- ✅ Notifications pour produits périmés
-- ✅ Suivi des réclamations en attente
+ONSSA SM est une application web complète conçue pour la gestion des activités de l'Office National de Sécurité Sanitaire des Produits Alimentaires. Le système permet aux administrateurs et agents de gérer les produits, réclamations, tâches et de générer des rapports de conformité.
+
+## ✨ Fonctionnalités
+
+### 🔐 Authentification et Autorisation
+- Connexion sécurisée avec JWT
+- Gestion des rôles (Administrateur/Agent)
+- Protection des routes par rôle
+
+### 📊 Tableau de Bord
+- Statistiques en temps réel
+- Vue d'ensemble des activités
+- Indicateurs de performance
+- Taux de conformité
+
+### 📦 Gestion des Produits
+- Inventaire des produits
+- Suivi des stocks
+- Alertes de stock faible
+- Gestion des dates d'expiration
+
+### ⚠️ Gestion des Réclamations
+- Création et suivi des réclamations
+- Statuts multiples
+- Historique des traitements
+- Notifications
+
+### ✅ Gestion des Tâches
+- Création et assignation de tâches
+- Suivi des progrès
+- Priorités et échéances
+- Rapports de completion
+
+### 📈 Analytics et Rapports
+- Statistiques détaillées
+- Graphiques interactifs
+- Rapports de conformité
+- Export de données
+
+### 👥 Gestion des Utilisateurs
+- Création et modification de comptes
+- Gestion des permissions
+- Historique des activités
 
 ## 🏗️ Architecture
 
-### Backend (Spring Boot)
-- **Java 17** avec Spring Boot 3.x
-- **Base de données** : H2 (développement) / MySQL/PostgreSQL (production)
-- **Sécurité** : JWT + Spring Security
-- **API REST** avec validation des données
-- **Gestion des erreurs** globale
-
-### Frontend (Angular)
-- **Angular 17** avec composants standalone
-- **Bootstrap 5** pour l'interface utilisateur
-- **Routing** avec guards d'authentification
-- **Services** pour la communication avec l'API
-- **Responsive design** pour tous les appareils
-
-## 🛠️ Installation et Configuration
-
-### Prérequis
-- Java 17+
-- Node.js 18+
-- Maven 3.6+
+### Frontend
+- **Framework**: Angular 17
+- **UI**: Bootstrap 5 + Bootstrap Icons
+- **Styling**: CSS personnalisé avec thème moderne
+- **State Management**: Services Angular
 
 ### Backend
+- **Framework**: Spring Boot 3
+- **Base de données**: MySQL 8
+- **Sécurité**: Spring Security + JWT
+- **API**: RESTful
+
+### Base de Données
+- **SGBD**: MySQL
+- **ORM**: JPA/Hibernate
+- **Migration**: Scripts SQL
+
+## 📋 Prérequis
+
+- **Java**: JDK 17 ou supérieur
+- **Node.js**: 18.x ou supérieur
+- **MySQL**: 8.0 ou supérieur
+- **Maven**: 3.6 ou supérieur
+- **Angular CLI**: 17.x
+
+## 🚀 Installation
+
+### 1. Cloner le Repository
+
+```bash
+git clone https://github.com/votre-username/onssa-sm.git
+cd onssa-sm
+```
+
+### 2. Configuration de la Base de Données
+
+```bash
+# Se connecter à MySQL
+mysql -u root -p
+
+# Créer la base de données
+CREATE DATABASE onssa_sm;
+USE onssa_sm;
+
+# Exécuter le script de création
+source backend/database-onssa.sql
+```
+
+### 3. Configuration Backend
+
 ```bash
 cd backend
+
+# Modifier application.properties si nécessaire
+# (URL de la base de données, credentials, etc.)
+
+# Installer les dépendances
 mvn clean install
+
+# Démarrer le serveur
 mvn spring-boot:run
 ```
 
-Le serveur démarre sur `http://localhost:8081`
+Le backend sera accessible sur `http://localhost:8080`
 
-### Frontend
+### 4. Configuration Frontend
+
 ```bash
 cd frontend/gsrv-frontend
+
+# Installer les dépendances
 npm install
+
+# Démarrer le serveur de développement
 npm start
 ```
 
-L'application démarre sur `http://localhost:4200`
+Le frontend sera accessible sur `http://localhost:4200`
 
-## 🔐 Rôles et Permissions
+## ⚙️ Configuration
 
-### Administrateur (ADMIN)
-- Gestion complète des utilisateurs
-- Gestion complète des produits
-- Traitement de toutes les réclamations
-- Accès à toutes les statistiques
+### Variables d'Environnement Backend
 
-### Agent ONSSA (AGENT)
-- Consultation des stocks
-- Création de réclamations
-- Suivi de ses réclamations
-- Accès aux statistiques de base
+Modifiez `backend/src/main/resources/application.properties` :
 
-### Vétérinaire (VETERINAIRE)
-- Consultation des stocks
-- Création de réclamations
-- Suivi de ses réclamations
-- Accès aux statistiques de base
+```properties
+# Base de données
+spring.datasource.url=jdbc:mysql://localhost:3306/onssa_sm
+spring.datasource.username=votre_username
+spring.datasource.password=votre_password
 
-## 📊 API Endpoints
+# JWT
+jwt.secret=votre_secret_jwt
+jwt.expiration=86400000
 
-### Authentification
+# Serveur
+server.port=8080
+```
+
+### Configuration Frontend
+
+Modifiez `frontend/gsrv-frontend/src/environments/environment.ts` :
+
+```typescript
+export const environment = {
+  production: false,
+  apiUrl: 'http://localhost:8080/api'
+};
+```
+
+## 🎮 Utilisation
+
+### Comptes par Défaut
+
+**Administrateur:**
+- Username: `admin`
+- Password: `admin123`
+
+**Agent:**
+- Username: `agent`
+- Password: `agent123`
+
+### Workflow Typique
+
+1. **Connexion** : Utilisez vos identifiants
+2. **Tableau de Bord** : Consultez les statistiques
+3. **Gestion** : Accédez aux modules selon votre rôle
+4. **Rapports** : Générez des rapports de conformité
+
+## 📚 API Documentation
+
+### Endpoints Principaux
+
+#### Authentification
 - `POST /api/auth/login` - Connexion utilisateur
-- `POST /api/auth/register` - Création de compte
+- `POST /api/auth/logout` - Déconnexion
 
-### Utilisateurs
-- `GET /api/users` - Liste des utilisateurs
-- `POST /api/users` - Créer un utilisateur
-- `PUT /api/users/{id}` - Modifier un utilisateur
-- `DELETE /api/users/{id}` - Supprimer un utilisateur
-- `PATCH /api/users/{id}/toggle-status` - Activer/Désactiver
+#### Dashboard
+- `GET /api/dashboard` - Données du tableau de bord
+- `GET /api/analytics` - Données analytiques
 
-### Produits
+#### Produits
 - `GET /api/products` - Liste des produits
 - `POST /api/products` - Créer un produit
 - `PUT /api/products/{id}` - Modifier un produit
 - `DELETE /api/products/{id}` - Supprimer un produit
 
-### Réclamations
+#### Réclamations
 - `GET /api/reclamations` - Liste des réclamations
 - `POST /api/reclamations` - Créer une réclamation
-- `PATCH /api/reclamations/{id}/status` - Mettre à jour le statut
+- `PUT /api/reclamations/{id}` - Modifier une réclamation
 
-### Dashboard
-- `GET /api/dashboard` - Données du tableau de bord
+#### Tâches
+- `GET /api/tasks` - Liste des tâches
+- `POST /api/tasks` - Créer une tâche
+- `PUT /api/tasks/{id}` - Modifier une tâche
 
-## 🎯 Cas d'usage
+#### Utilisateurs
+- `GET /api/users` - Liste des utilisateurs
+- `POST /api/users` - Créer un utilisateur
+- `PUT /api/users/{id}` - Modifier un utilisateur
 
-### Pour un Administrateur
-1. Se connecter avec ses identifiants
-2. Accéder au tableau de bord pour voir l'état global
-3. Gérer les utilisateurs (créer, modifier, désactiver)
-4. Surveiller les stocks et traiter les alertes
-5. Traiter les réclamations en attente
+## 📁 Structure du Projet
 
-### Pour un Agent/Vétérinaire
-1. Se connecter avec ses identifiants
-2. Consulter les stocks disponibles
-3. Créer une réclamation si un produit est manquant
-4. Suivre le statut de ses réclamations
-
-## 🔧 Configuration
-
-### Base de données
-Modifiez `application.properties` pour configurer votre base de données :
-
-```properties
-# H2 (développement)
-spring.datasource.url=jdbc:h2:mem:testdb
-spring.datasource.driverClassName=org.h2.Driver
-
-# MySQL (production)
-# spring.datasource.url=jdbc:mysql://localhost:3306/gsrv
-# spring.datasource.username=gsrv_user
-# spring.datasource.password=gsrv_pass
+```
+onssa-sm/
+├── backend/                          # Application Spring Boot
+│   ├── src/main/java/ma/onssa/gsrv/
+│   │   ├── controller/              # Contrôleurs REST
+│   │   ├── service/                 # Services métier
+│   │   ├── repository/              # Repositories JPA
+│   │   ├── model/                   # Entités JPA
+│   │   ├── config/                  # Configuration
+│   │   └── GsrvApplication.java     # Classe principale
+│   ├── src/main/resources/
+│   │   ├── application.properties   # Configuration
+│   │   └── database-onssa.sql      # Script de base de données
+│   └── pom.xml                      # Dépendances Maven
+├── frontend/gsrv-frontend/          # Application Angular
+│   ├── src/app/
+│   │   ├── components/             # Composants Angular
+│   │   ├── services/               # Services Angular
+│   │   ├── guards/                 # Guards d'authentification
+│   │   └── app.ts                  # Composant principal
+│   ├── src/environments/           # Configuration d'environnement
+│   └── package.json                # Dépendances npm
+├── use_case_diagram.puml           # Diagramme de cas d'utilisation
+├── class_diagram.puml              # Diagramme de classes
+├── sequence_diagrams.puml          # Diagrammes de séquence
+├── onssa_sm_diagrams.puml          # Tous les diagrammes
+├── README_Diagrams.md              # Documentation des diagrammes
+└── README.md                      # Ce fichier
 ```
 
-### Sécurité JWT
-```properties
-jwt.secret=votre_secret_jwt_tres_long_et_complexe
-jwt.expiration=86400000
-```
+## 📊 Diagrammes UML
 
-## 🚨 Alertes et Notifications
+Le projet inclut des diagrammes PlantUML complets :
 
-Le système génère automatiquement des alertes pour :
-- **Stock critique** : Quantité ≤ seuil minimum
-- **Produits périmés** : Date de péremption dépassée
-- **Réclamations en attente** : Réclamations non traitées
+- **Diagramme de Cas d'Utilisation** : Interactions utilisateur-système
+- **Diagramme de Classes** : Structure des entités et relations
+- **Diagrammes de Séquence** : Flux d'exécution des principales fonctionnalités
 
-## 📱 Interface utilisateur
+### Visualisation des Diagrammes
 
-- **Design responsive** adapté à tous les écrans
-- **Navigation intuitive** avec menu contextuel
-- **Tableaux interactifs** avec tri et filtrage
-- **Formulaires validés** avec messages d'erreur
-- **Notifications visuelles** pour les actions importantes
+1. Installez l'extension PlantUML dans VS Code
+2. Ouvrez les fichiers `.puml`
+3. Utilisez `Alt+Shift+D` pour prévisualiser
 
-## 🔒 Sécurité
-
-- **Authentification JWT** sécurisée
-- **Validation des données** côté serveur
-- **Gestion des rôles** et permissions
-- **Protection CSRF** activée
-- **Headers de sécurité** configurés
-
-## 🧪 Tests
-
-### Backend
-```bash
-cd backend
-mvn test
-```
-
-### Frontend
-```bash
-cd frontend/gsrv-frontend
-npm test
-```
-
-## 📈 Évolutions futures
-
-- [ ] Notifications en temps réel (WebSocket)
-- [ ] Export des données (PDF, Excel)
-- [ ] API mobile dédiée
-- [ ] Intégration avec d'autres systèmes ONSSA
-- [ ] Tableau de bord avancé avec graphiques
-- [ ] Gestion des fournisseurs et commandes
+Ou utilisez un éditeur en ligne comme [PlantUML Web Server](http://www.plantuml.com/plantuml/uml/)
 
 ## 🤝 Contribution
 
 1. Fork le projet
-2. Créez une branche pour votre fonctionnalité
-3. Committez vos changements
-4. Poussez vers la branche
+2. Créez une branche pour votre fonctionnalité (`git checkout -b feature/AmazingFeature`)
+3. Committez vos changements (`git commit -m 'Add some AmazingFeature'`)
+4. Push vers la branche (`git push origin feature/AmazingFeature`)
 5. Ouvrez une Pull Request
+
+### Standards de Code
+
+- **Backend** : Suivez les conventions Java et Spring Boot
+- **Frontend** : Suivez les conventions Angular et TypeScript
+- **Base de données** : Utilisez des noms en français pour les tables et colonnes
 
 ## 📄 Licence
 
-Ce projet est développé pour l'ONSSA et est propriétaire.
+Ce projet est sous licence MIT. Voir le fichier `LICENSE` pour plus de détails.
 
 ## 📞 Support
 
 Pour toute question ou problème :
-- Créez une issue sur le repository
-- Contactez l'équipe de développement ONSSA
+
+- Créez une issue sur GitHub
+- Contactez l'équipe de développement
+- Consultez la documentation technique
 
 ---
 
-**Développé avec ❤️ pour l'ONSSA**
+**Développé avec ❤️ pour ONSSA**

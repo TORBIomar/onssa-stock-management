@@ -5,9 +5,12 @@ import ma.onssa.gsrv.dto.ReclamationCreateDto;
 import ma.onssa.gsrv.entity.Reclamation;
 
 import ma.onssa.gsrv.service.ReclamationService;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.net.URI;
 import java.util.List;
@@ -17,6 +20,7 @@ import java.util.List;
 @CrossOrigin(origins = { "http://localhost:4200" })
 public class ReclamationController {
 
+    private static final Logger logger = LoggerFactory.getLogger(ReclamationController.class);
     private final ReclamationService reclamationService;
 
     public ReclamationController(ReclamationService reclamationService) {
@@ -32,7 +36,7 @@ public class ReclamationController {
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'AGENT')")
     public List<Reclamation> list() {
         return reclamationService.listAll();
     }
@@ -59,7 +63,20 @@ public class ReclamationController {
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
-        reclamationService.delete(id);
-        return ResponseEntity.noContent().build();
+        try {
+            logger.info("Deleting reclamation with ID: {}", id);
+            reclamationService.delete(id);
+            logger.info("Reclamation deleted successfully with ID: {}", id);
+            return ResponseEntity.noContent().build();
+        } catch (IllegalArgumentException e) {
+            logger.warn("Reclamation not found with ID: {}", id);
+            return ResponseEntity.notFound().build();
+        } catch (IllegalStateException e) {
+            logger.warn("Cannot delete reclamation with ID {}: {}", id, e.getMessage());
+            return ResponseEntity.status(HttpStatus.CONFLICT).build();
+        } catch (Exception e) {
+            logger.error("Error deleting reclamation with ID {}: ", id, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 }

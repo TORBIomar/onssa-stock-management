@@ -1,0 +1,288 @@
+@startuml SequenceDiagrams
+
+' ========================================
+' DIAGRAMME DE SÉQUENCE - CONNEXION
+' ========================================
+@startuml LoginSequence
+
+title Diagramme de Séquence - Connexion Utilisateur - ONSSA SM
+
+actor Utilisateur
+participant "Frontend" as FE
+participant "AuthController" as AC
+participant "UserService" as US
+participant "UserRepository" as UR
+participant "JWTService" as JWT
+database "Base de données" as DB
+
+Utilisateur -> FE: Saisir identifiants
+FE -> AC: POST /auth/login
+activate AC
+
+AC -> US: authenticateUser(username, password)
+activate US
+
+US -> UR: findByUsername(username)
+activate UR
+UR -> DB: SELECT * FROM users WHERE username = ?
+DB --> UR: User data
+UR --> US: User object
+deactivate UR
+
+US -> US: validatePassword(password, user.password)
+US -> JWT: generateToken(user)
+activate JWT
+JWT --> US: JWT token
+deactivate JWT
+
+US --> AC: LoginResponse(token, user)
+deactivate US
+
+AC --> FE: HTTP 200 + LoginResponse
+deactivate AC
+
+FE -> FE: Stocker token dans localStorage
+FE -> FE: Rediriger vers dashboard
+
+FE --> Utilisateur: Afficher dashboard
+
+@enduml
+
+' ========================================
+' DIAGRAMME DE SÉQUENCE - GESTION PRODUITS
+' ========================================
+@startuml ProductManagementSequence
+
+title Diagramme de Séquence - Gestion des Produits - ONSSA SM
+
+actor Admin
+participant "Frontend" as FE
+participant "ProductController" as PC
+participant "ProductService" as PS
+participant "ProductRepository" as PR
+database "Base de données" as DB
+
+== Création d'un produit ==
+Admin -> FE: Remplir formulaire produit
+FE -> PC: POST /products
+activate PC
+
+PC -> PS: createProduct(productDto)
+activate PS
+
+PS -> PS: validateProduct(productDto)
+PS -> PR: save(product)
+activate PR
+PR -> DB: INSERT INTO products
+DB --> PR: Product saved
+PR --> PS: Product object
+deactivate PR
+
+PS --> PC: ProductResponse
+deactivate PS
+
+PC --> FE: HTTP 201 + ProductResponse
+deactivate PC
+
+FE --> Admin: Confirmation création
+
+== Consultation des produits ==
+Admin -> FE: Demander liste produits
+FE -> PC: GET /products
+activate PC
+
+PC -> PS: getAllProducts()
+activate PS
+
+PS -> PR: findAll()
+activate PR
+PR -> DB: SELECT * FROM products
+DB --> PR: List of products
+PR --> PS: List<Product>
+deactivate PR
+
+PS --> PC: List<ProductResponse>
+deactivate PS
+
+PC --> FE: HTTP 200 + List<ProductResponse>
+deactivate PC
+
+FE --> Admin: Afficher liste produits
+
+== Mise à jour stock ==
+Admin -> FE: Modifier quantité
+FE -> PC: PUT /products/{id}
+activate PC
+
+PC -> PS: updateProduct(id, productDto)
+activate PS
+
+PS -> PR: findById(id)
+activate PR
+PR -> DB: SELECT * FROM products WHERE id = ?
+DB --> PR: Product
+PR --> PS: Product
+deactivate PR
+
+PS -> PS: updateStock(product, newQuantity)
+PS -> PR: save(product)
+activate PR
+PR -> DB: UPDATE products SET quantity = ?
+DB --> PR: Product updated
+PR --> PS: Product
+deactivate PR
+
+PS --> PC: ProductResponse
+deactivate PS
+
+PC --> FE: HTTP 200 + ProductResponse
+deactivate PC
+
+FE --> Admin: Confirmation mise à jour
+
+@enduml
+
+' ========================================
+' DIAGRAMME DE SÉQUENCE - GESTION RÉCLAMATIONS
+' ========================================
+@startuml ReclamationSequence
+
+title Diagramme de Séquence - Gestion des Réclamations - ONSSA SM
+
+actor Agent
+participant "Frontend" as FE
+participant "ReclamationController" as RC
+participant "ReclamationService" as RS
+participant "ProductService" as PS
+participant "ReclamationRepository" as RR
+database "Base de données" as DB
+
+== Création d'une réclamation ==
+Agent -> FE: Remplir formulaire réclamation
+FE -> RC: POST /reclamations
+activate RC
+
+RC -> RS: createReclamation(reclamationDto)
+activate RS
+
+RS -> PS: getProductById(productId)
+activate PS
+PS --> RS: Product
+deactivate PS
+
+RS -> RS: validateReclamation(reclamationDto, product)
+RS -> RR: save(reclamation)
+activate RR
+RR -> DB: INSERT INTO reclamations
+DB --> RR: Reclamation saved
+RR --> RS: Reclamation object
+deactivate RR
+
+RS --> RC: ReclamationResponse
+deactivate RS
+
+RC --> FE: HTTP 201 + ReclamationResponse
+deactivate RC
+
+FE --> Agent: Confirmation création
+
+== Traitement d'une réclamation ==
+Agent -> FE: Sélectionner réclamation à traiter
+FE -> RC: PUT /reclamations/{id}/status
+activate RC
+
+RC -> RS: updateReclamationStatus(id, status)
+activate RS
+
+RS -> RR: findById(id)
+activate RR
+RR -> DB: SELECT * FROM reclamations WHERE id = ?
+DB --> RR: Reclamation
+RR --> RS: Reclamation
+deactivate RR
+
+RS -> RS: updateStatus(reclamation, newStatus)
+RS -> RR: save(reclamation)
+activate RR
+RR -> DB: UPDATE reclamations SET status = ?
+DB --> RR: Reclamation updated
+RR --> RS: Reclamation
+deactivate RR
+
+RS --> RC: ReclamationResponse
+deactivate RS
+
+RC --> FE: HTTP 200 + ReclamationResponse
+deactivate RC
+
+FE --> Agent: Confirmation traitement
+
+@enduml
+
+' ========================================
+' DIAGRAMME DE SÉQUENCE - ANALYTICS
+' ========================================
+@startuml AnalyticsSequence
+
+title Diagramme de Séquence - Génération des Analytics - ONSSA SM
+
+actor Admin
+participant "Frontend" as FE
+participant "AnalyticsController" as AC
+participant "AnalyticsService" as AS
+participant "ProductService" as PS
+participant "ReclamationService" as RS
+participant "UserService" as US
+database "Base de données" as DB
+
+Admin -> FE: Demander analytics
+FE -> AC: GET /analytics
+activate AC
+
+AC -> AS: generateAnalytics()
+activate AS
+
+== Calcul des statistiques produits ==
+AS -> PS: getAllProducts()
+activate PS
+PS -> DB: SELECT * FROM products
+DB --> PS: List of products
+PS --> AS: List<Product>
+deactivate PS
+
+AS -> AS: calculateStockAnalytics(products)
+
+== Calcul des statistiques réclamations ==
+AS -> RS: getAllReclamations()
+activate RS
+RS -> DB: SELECT * FROM reclamations
+DB --> RS: List of reclamations
+RS --> AS: List<Reclamation>
+deactivate RS
+
+AS -> AS: calculateReclamationAnalytics(reclamations)
+
+== Calcul des statistiques utilisateurs ==
+AS -> US: getAllUsers()
+activate US
+US -> DB: SELECT * FROM users
+DB --> US: List of users
+US --> AS: List<User>
+deactivate US
+
+AS -> AS: calculateUserAnalytics(users)
+
+== Calcul des métriques de performance ==
+AS -> AS: calculatePerformanceMetrics(products, reclamations)
+
+AS --> AC: AnalyticsResponse
+deactivate AS
+
+AC --> FE: HTTP 200 + AnalyticsResponse
+deactivate AC
+
+FE --> Admin: Afficher analytics
+
+@enduml
+
+@enduml

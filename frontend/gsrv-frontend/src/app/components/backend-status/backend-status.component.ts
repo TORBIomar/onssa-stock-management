@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ApiService } from '../../services/api.service';
 
@@ -130,7 +130,7 @@ export class BackendStatusComponent implements OnInit {
   stockData: any = null;
   claimsData: any = null;
 
-  constructor(private apiService: ApiService) { }
+  constructor(private apiService: ApiService, private cdr: ChangeDetectorRef) { }
 
   ngOnInit() {
     this.testConnection();
@@ -141,12 +141,13 @@ export class BackendStatusComponent implements OnInit {
     this.errorMessage = '';
 
     this.apiService.testConnection().subscribe({
-      next: (response) => {
+      next: (response: any) => {
         this.isConnected = true;
         this.isLoading = false;
         console.log('Backend connected:', response);
+        this.cdr.detectChanges(); // Detect changes after connection test
       },
-      error: (error) => {
+      error: (error: any) => {
         this.isConnected = false;
         this.isLoading = false;
 
@@ -159,32 +160,37 @@ export class BackendStatusComponent implements OnInit {
         }
 
         console.error('Backend connection failed:', error);
+        this.cdr.detectChanges(); // Detect changes after error
       }
     });
   }
 
   getStockData() {
     this.apiService.getStock().subscribe({
-      next: (data) => {
+      next: (data: any) => {
         this.stockData = data;
         console.log('Stock data:', data);
+        this.cdr.detectChanges(); // Detect changes after loading stock data
       },
-      error: (error) => {
+      error: (error: any) => {
         this.errorMessage = 'Failed to get stock data: ' + error.message;
         console.error('Stock data error:', error);
+        this.cdr.detectChanges(); // Detect changes after error
       }
     });
   }
 
   getClaimsData() {
     this.apiService.getClaims().subscribe({
-      next: (data) => {
+      next: (data: any) => {
         this.claimsData = data;
         console.log('Claims data:', data);
+        this.cdr.detectChanges(); // Detect changes after loading claims data
       },
-      error: (error) => {
+      error: (error: any) => {
         this.errorMessage = 'Failed to get claims data: ' + error.message;
         console.error('Claims data error:', error);
+        this.cdr.detectChanges(); // Detect changes after error
       }
     });
   }

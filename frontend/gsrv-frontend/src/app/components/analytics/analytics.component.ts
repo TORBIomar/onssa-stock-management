@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ApiService } from '../../services/api.service';
 
@@ -155,8 +155,8 @@ import { ApiService } from '../../services/api.service';
                 </div>
                 <div class="col-md-3">
                   <div class="text-center">
-                    <h3 class="text-info">{{ analytics.performanceMetrics?.reclamationResolutionRate || 'N/A' }}</h3>
-                    <p class="text-muted mb-0">Taux Résolution</p>
+                    <h3 class="text-info">{{ analytics.performanceMetrics?.complianceRate || 'N/A' }}</h3>
+                    <p class="text-muted mb-0">Taux de Conformité</p>
                   </div>
                 </div>
                 <div class="col-md-3">
@@ -290,7 +290,7 @@ import { ApiService } from '../../services/api.service';
 export class AnalyticsComponent implements OnInit {
   analytics: any = null;
 
-  constructor(private api: ApiService) { }
+  constructor(private api: ApiService, private cdr: ChangeDetectorRef) { }
 
   ngOnInit() {
     this.loadAnalytics();
@@ -300,9 +300,11 @@ export class AnalyticsComponent implements OnInit {
     this.api.getAnalytics().subscribe({
       next: (data) => {
         this.analytics = data;
+        this.cdr.detectChanges(); // Detect changes after loading analytics
       },
       error: (error) => {
         console.error('Error loading analytics:', error);
+        this.cdr.detectChanges(); // Detect changes after error
       }
     });
   }

@@ -1,0 +1,145 @@
+@startuml ClassDiagram
+
+title Diagramme de Classes - Système ONSSA SM
+
+' Entités principales
+class User {
+  -id: Long
+  -username: String
+  -email: String
+  -password: String
+  -role: UserRole
+  -active: Boolean
+  -createdAt: LocalDateTime
+  -updatedAt: LocalDateTime
+  +getId(): Long
+  +getUsername(): String
+  +getEmail(): String
+  +getRole(): UserRole
+  +isActive(): Boolean
+  +setActive(active: Boolean): void
+}
+
+enum UserRole {
+  ADMIN
+  AGENT
+}
+
+class Product {
+  -id: Long
+  -name: String
+  -category: ProductCategory
+  -quantity: Integer
+  -minimumThreshold: Integer
+  -expiryDate: LocalDate
+  -createdAt: LocalDateTime
+  -updatedAt: LocalDateTime
+  +getId(): Long
+  +getName(): String
+  +getCategory(): ProductCategory
+  +getQuantity(): Integer
+  +getMinimumThreshold(): Integer
+  +getExpiryDate(): LocalDate
+  +setQuantity(quantity: Integer): void
+  +isLowStock(): Boolean
+  +isExpired(): Boolean
+}
+
+enum ProductCategory {
+  VACCIN
+  MEDICAMENT_VETERINAIRE
+  ALIMENT_ANIMAL
+  IMPORT_EXPORT
+}
+
+class Reclamation {
+  -id: Long
+  -titre: String
+  -reason: String
+  -observedQuantity: Integer
+  -status: ReclamationStatus
+  -createdAt: LocalDateTime
+  -updatedAt: LocalDateTime
+  +getId(): Long
+  +getTitre(): String
+  +getReason(): String
+  +getStatus(): ReclamationStatus
+  +getObservedQuantity(): Integer
+  +setStatus(status: ReclamationStatus): void
+  +isPending(): Boolean
+}
+
+enum ReclamationStatus {
+  OUVERTE
+  EN_COURS
+  TRAITEE
+  FERMEE
+}
+
+class Task {
+  -id: Long
+  -title: String
+  -description: String
+  -status: TaskStatus
+  -priority: TaskPriority
+  -dueDate: LocalDate
+  -createdAt: LocalDateTime
+  -updatedAt: LocalDateTime
+  +getId(): Long
+  +getTitle(): String
+  +getDescription(): String
+  +getStatus(): TaskStatus
+  +getPriority(): TaskPriority
+  +getDueDate(): LocalDate
+  +setStatus(status: TaskStatus): void
+  +isOverdue(): Boolean
+}
+
+enum TaskStatus {
+  A_FAIRE
+  EN_COURS
+  TERMINEE
+  ANNULEE
+}
+
+enum TaskPriority {
+  BASSE
+  MOYENNE
+  HAUTE
+  CRITIQUE
+}
+
+class Report {
+  -id: Long
+  -type: ReportType
+  -title: String
+  -content: String
+  -generatedAt: LocalDateTime
+  -createdBy: User
+  +getId(): Long
+  +getType(): ReportType
+  +getTitle(): String
+  +getContent(): String
+  +getGeneratedAt(): LocalDateTime
+  +generateReport(): String
+}
+
+enum ReportType {
+  STOCK
+  RECLAMATIONS
+  CONFORMITE
+  ANALYTICS
+}
+
+' Relations
+User ||--o{ Reclamation : "crée"
+User ||--o{ Task : "assigne"
+User ||--o{ Report : "génère"
+Product ||--o{ Reclamation : "concerné par"
+Product }o--|| ProductCategory : "appartient à"
+Reclamation }o--|| ReclamationStatus : "a le statut"
+Task }o--|| TaskStatus : "a le statut"
+Task }o--|| TaskPriority : "a la priorité"
+Report }o--|| ReportType : "est de type"
+
+@enduml

@@ -4,7 +4,7 @@
 This document explains how to set up the `onssa` database for the GSRV backend system.
 
 ## Prerequisites
-- MySQL Server running on localhost:3306
+- MySQL Server running on product-reclamation-db.gsrv-system.com:3306
 - MySQL user `root` with password `root`
 - MySQL client tools accessible
 
@@ -68,7 +68,7 @@ setup-database.bat
 
 ### Common Issues
 
-1. **Access denied for user 'root'@'localhost'**
+1. **Access denied for user 'root'@'product-reclamation-db.gsrv-system.com'**
    - Check if MySQL is running
    - Verify the password is correct
    - Try resetting MySQL root password if needed
@@ -103,7 +103,7 @@ Once the database is set up:
 2. **Test the connection**:
    - Backend should start without database errors
    - Check logs for successful database connection
-   - Test the health endpoint: `http://localhost:8081/api/health`
+   - Test the health endpoint: `https://product-reclamation-hub-api.gsrv-system.com/health`
 
 3. **Test product creation**:
    - The "ajouter produit" button should now work

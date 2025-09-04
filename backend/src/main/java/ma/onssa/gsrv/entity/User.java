@@ -18,7 +18,7 @@ public class User {
     private String username;
 
     @NotBlank
-    @Column(nullable = false)
+    @Column(name = "password", nullable = false)
     private String passwordHash;
 
     @Email

@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
@@ -11,8 +11,8 @@ interface Task {
   assignedTo?: string;
   createdByUserId: number;
   createdBy?: string;
-  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  status: 'A_FAIRE' | 'EN_COURS' | 'TERMINE' | 'ANNULE';
   dueDate?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -32,18 +32,25 @@ interface Task {
           <p class="text-muted">Organiser et suivre les tâches du système</p>
         </div>
         <div class="btn-group">
-          <button class="btn btn-outline-primary btn-sm" (click)="refreshTasks()">
-            <i class="bi bi-arrow-clockwise me-2"></i>
-            Actualiser
-          </button>
           <button class="btn btn-primary btn-sm" (click)="openAddModal()">
             <i class="bi bi-plus me-2"></i>Nouvelle Tâche
+          </button>
+          <button class="btn btn-outline-secondary btn-sm" (click)="loadTasks()">
+            <i class="bi bi-arrow-clockwise me-2"></i>Actualiser
           </button>
         </div>
       </div>
 
+      <!-- Loading State -->
+      <div *ngIf="loading" class="text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Chargement...</span>
+        </div>
+        <p class="mt-3 text-muted">Chargement des tâches...</p>
+      </div>
+
       <!-- Tasks Content -->
-      <div class="row g-4">
+      <div *ngIf="!loading" class="row g-4">
         
         <!-- Task Summary Cards -->
         <div class="col-md-3">
@@ -95,9 +102,9 @@ interface Task {
                 <button class="btn btn-outline-secondary" (click)="exportToCSV()">
                   <i class="bi bi-download me-1"></i>Exporter
                 </button>
-                <button class="btn btn-outline-info" (click)="showPendingOnly = !showPendingOnly">
-                  <i class="bi bi-filter me-1"></i>{{ showPendingOnly ? 'Toutes' : 'En Attente' }}
-                </button>
+                                 <button class="btn btn-outline-info" (click)="showPendingOnly = !showPendingOnly">
+                   <i class="bi bi-filter me-1"></i>{{ showPendingOnly ? 'Toutes' : 'À Faire' }}
+                 </button>
               </div>
             </div>
             <div class="card-body">
@@ -108,56 +115,50 @@ interface Task {
                       <th>ID</th>
                       <th>Titre</th>
                       <th>Description</th>
-                      <th>Assigné à</th>
                       <th>Priorité</th>
                       <th>Statut</th>
-                      <th>Date Limite</th>
+                      <th>Date d'échéance</th>
+                      <th>Assigné à</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr *ngFor="let task of getFilteredTasks()" 
-                        [class.table-warning]="isOverdue(task)" 
-                        [class.table-danger]="isCritical(task)"
-                        [class.table-success]="isCompleted(task)">
+                                         <tr *ngFor="let task of getFilteredTasks()" 
+                         [class.table-warning]="task.status === 'A_FAIRE'"
+                         [class.table-info]="task.status === 'EN_COURS'"
+                         [class.table-success]="task.status === 'TERMINE'"
+                         [class.table-danger]="task.status === 'ANNULE'">
                       <td>{{ task.id }}</td>
                       <td>
                         <strong>{{ task.title }}</strong>
                       </td>
                       <td>{{ task.description || 'Aucune description' }}</td>
                       <td>
-                        <span class="badge bg-info">{{ getAssignedTo(task) }}</span>
-                      </td>
-                      <td>
                         <span [class]="getPriorityBadge(task.priority)">
-                          {{ getPriorityDisplay(task.priority) }}
+                          {{ getPriorityText(task.priority) }}
                         </span>
                       </td>
                       <td>
                         <span [class]="getStatusBadge(task.status)">
-                          {{ getStatusDisplay(task.status) }}
+                          {{ getStatusText(task.status) }}
                         </span>
                       </td>
-                      <td>
-                        <span [class]="getDueDateClass(task.dueDate)">
-                          {{ formatDate(task.dueDate) }}
-                        </span>
-                      </td>
+                      <td>{{ formatDate(task.dueDate) }}</td>
+                      <td>{{ task.assignedTo || 'Non assigné' }}</td>
                       <td>
                         <div class="btn-group btn-group-sm">
                           <button class="btn btn-outline-primary" (click)="editTask(task)" title="Modifier">
                             <i class="bi bi-pencil"></i>
                           </button>
-                          <button class="btn btn-outline-success" (click)="completeTask(task.id)" 
-                                  *ngIf="task.status !== 'COMPLETED'" title="Marquer comme Terminée">
-                            <i class="bi bi-check"></i>
+                          <button class="btn btn-outline-info" (click)="viewDetails(task)" title="Détails">
+                            <i class="bi bi-eye"></i>
                           </button>
-                          <button class="btn btn-outline-warning" (click)="startTask(task.id)" 
-                                  *ngIf="task.status === 'PENDING'" title="Commencer">
-                            <i class="bi bi-play"></i>
+                                                     <button class="btn btn-outline-success" (click)="completeTask(task)" 
+                                   [disabled]="task.status === 'TERMINE' || completingTask === task.id" title="Terminer">
+                            <i class="bi" [class]="completingTask === task.id ? 'bi-hourglass-split' : 'bi-check'"></i>
                           </button>
                           <button class="btn btn-outline-danger" (click)="deleteTask(task.id)" 
-                                  [disabled]="deletingTask === task.id" title="Supprimer">
+                                  [disabled]="!task.id || deletingTask === task.id" title="Supprimer">
                             <i class="bi" [class]="deletingTask === task.id ? 'bi-hourglass-split' : 'bi-trash'"></i>
                           </button>
                         </div>
@@ -173,13 +174,24 @@ interface Task {
       </div>
 
       <!-- Error State -->
-      <div *ngIf="!tasks && error" class="text-center py-5">
+      <div *ngIf="!loading && error" class="text-center py-5">
         <div class="alert alert-danger" role="alert">
           <i class="bi bi-exclamation-triangle me-2"></i>
           {{ error }}
         </div>
-        <button class="btn btn-primary" (click)="refreshTasks()">
+        <button class="btn btn-primary" (click)="loadTasks()">
           <i class="bi bi-arrow-clockwise me-2"></i>Réessayer
+        </button>
+      </div>
+
+      <!-- Empty State -->
+      <div *ngIf="!loading && !error && tasks.length === 0" class="text-center py-5">
+        <div class="alert alert-info" role="alert">
+          <i class="bi bi-info-circle me-2"></i>
+          Aucune tâche trouvée. Commencez par créer votre première tâche.
+        </div>
+        <button class="btn btn-primary" (click)="openAddModal()">
+          <i class="bi bi-plus me-2"></i>Créer une Tâche
         </button>
       </div>
 
@@ -197,61 +209,48 @@ interface Task {
             <div class="modal-body">
               <form #addTaskForm="ngForm">
                 <div class="row">
-                  <div class="col-md-8">
+                  <div class="col-md-6">
                     <div class="mb-3">
                       <label class="form-label">Titre *</label>
                       <input type="text" class="form-control" [(ngModel)]="newTask.title" name="title" required>
                     </div>
                   </div>
-                  <div class="col-md-4">
+                  <div class="col-md-6">
                     <div class="mb-3">
                       <label class="form-label">Priorité *</label>
-                      <select class="form-select" [(ngModel)]="newTask.priority" name="priority" required>
-                        <option value="">Sélectionner</option>
-                        <option value="LOW">Basse</option>
-                        <option value="MEDIUM">Moyenne</option>
-                        <option value="HIGH">Haute</option>
-                        <option value="CRITICAL">Critique</option>
-                      </select>
+                                             <select class="form-select" [(ngModel)]="newTask.priority" name="priority" required>
+                         <option value="">Sélectionner une priorité</option>
+                         <option value="LOW">Faible</option>
+                         <option value="MEDIUM">Moyenne</option>
+                         <option value="HIGH">Élevée</option>
+                         <option value="URGENT">Urgent</option>
+                       </select>
                     </div>
                   </div>
-                </div>
-                <div class="mb-3">
-                  <label class="form-label">Description</label>
-                  <textarea class="form-control" [(ngModel)]="newTask.description" name="description" rows="3" 
-                            placeholder="Description détaillée de la tâche..."></textarea>
                 </div>
                 <div class="row">
                   <div class="col-md-6">
                     <div class="mb-3">
-                      <label class="form-label">Assigné à</label>
-                      <select class="form-select" [(ngModel)]="newTask.assignedToUserId" name="assignedToUserId">
-                        <option value="">Sélectionner un utilisateur</option>
-                        <option *ngFor="let user of users" [value]="user.id">
-                          {{ user.username }} ({{ getRoleDisplay(user.role) }})
-                        </option>
-                      </select>
+                      <label class="form-label">Statut *</label>
+                                             <select class="form-select" [(ngModel)]="newTask.status" name="status" required>
+                         <option value="">Sélectionner un statut</option>
+                         <option value="A_FAIRE">En Attente</option>
+                         <option value="EN_COURS">En Cours</option>
+                         <option value="TERMINE">Terminée</option>
+                         <option value="ANNULE">Annulée</option>
+                       </select>
                     </div>
                   </div>
-                  <div class="col-md-6">
-                    <div class="mb-3">
-                      <label class="form-label">Date Limite</label>
-                      <input type="date" class="form-control" [(ngModel)]="newTask.dueDate" name="dueDate">
-                    </div>
-                  </div>
+                                       <div class="col-md-6">
+                       <div class="mb-3">
+                         <label class="form-label">Date d'échéance *</label>
+                         <input type="date" class="form-control" [(ngModel)]="newTask.dueDate" name="dueDate" required>
+                       </div>
+                     </div>
                 </div>
-                <div class="row" *ngIf="editingTask">
-                  <div class="col-md-6">
-                    <div class="mb-3">
-                      <label class="form-label">Statut</label>
-                      <select class="form-select" [(ngModel)]="newTask.status" name="status">
-                        <option value="PENDING">En Attente</option>
-                        <option value="IN_PROGRESS">En Cours</option>
-                        <option value="COMPLETED">Terminée</option>
-                        <option value="CANCELLED">Annulée</option>
-                      </select>
-                    </div>
-                  </div>
+                <div class="mb-3">
+                  <label class="form-label">Description</label>
+                  <textarea class="form-control" [(ngModel)]="newTask.description" name="description" rows="3"></textarea>
                 </div>
               </form>
             </div>
@@ -263,8 +262,65 @@ interface Task {
                   <i class="bi" [class]="editingTask ? 'bi-check' : 'bi-plus'"></i>
                   {{ editingTask ? 'Modifier' : 'Créer' }}
                 </span>
-                <span *ngIf="saving" class="spinner-border spinner-border-sm me-2"></span>
-                {{ saving ? 'Enregistrement...' : '' }}
+                <span *ngIf="saving">
+                  <span class="spinner-border spinner-border-sm me-2"></span>
+                  {{ editingTask ? 'Modification...' : 'Création...' }}
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Task Details Modal -->
+      <div *ngIf="showDetailsModal" class="modal fade show d-block" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">
+                <i class="bi bi-eye me-2"></i>
+                Détails de la Tâche
+              </h5>
+              <button type="button" class="btn-close" (click)="closeDetailsModal()"></button>
+            </div>
+            <div class="modal-body">
+              <div *ngIf="selectedTask" class="row g-3">
+                <div class="col-md-6">
+                  <div class="card bg-light">
+                    <div class="card-body">
+                      <h6 class="card-title text-primary">Informations Générales</h6>
+                      <p><strong>ID:</strong> {{ selectedTask.id }}</p>
+                      <p><strong>Titre:</strong> {{ selectedTask.title }}</p>
+                      <p><strong>Priorité:</strong> 
+                        <span [class]="getPriorityBadge(selectedTask.priority)">
+                          {{ getPriorityText(selectedTask.priority) }}
+                        </span>
+                      </p>
+                      <p><strong>Statut:</strong> 
+                        <span [class]="getStatusBadge(selectedTask.status)">
+                          {{ getStatusText(selectedTask.status) }}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="card bg-light">
+                    <div class="card-body">
+                      <h6 class="card-title text-info">Détails</h6>
+                      <p><strong>Description:</strong> {{ selectedTask.description || 'Aucune description' }}</p>
+                      <p><strong>Date d'échéance:</strong> {{ formatDate(selectedTask.dueDate) }}</p>
+                      <p><strong>Assigné à:</strong> {{ selectedTask.assignedTo || 'Non assigné' }}</p>
+                      <p><strong>Créé par:</strong> {{ selectedTask.createdBy || 'N/A' }}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" (click)="closeDetailsModal()">Fermer</button>
+              <button type="button" class="btn btn-primary" (click)="editTask(selectedTask!)">
+                <i class="bi bi-pencil me-2"></i>Modifier
               </button>
             </div>
           </div>
@@ -327,236 +383,185 @@ interface Task {
       border-radius: 8px;
     }
 
-    .spin {
-      animation: spin 1s linear infinite;
+    /* Toast Notifications */
+    .toast-notification {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 9999;
+      padding: 12px 20px;
+      border-radius: 8px;
+      color: white;
+      font-weight: 500;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      animation: slideIn 0.3s ease-out;
+      max-width: 400px;
     }
 
-    @keyframes spin {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
+    .toast-notification.success {
+      background: linear-gradient(135deg, #28a745, #20c997);
+    }
+
+    .toast-notification.error {
+      background: linear-gradient(135deg, #dc3545, #fd7e14);
+    }
+
+    .toast-content {
+      display: flex;
+      align-items: center;
+    }
+
+    @keyframes slideIn {
+      from {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
     }
   `]
 })
 export class TasksComponent implements OnInit {
   tasks: Task[] = [];
-  users: any[] = [];
+  loading = false;
   saving = false;
   deletingTask: number | null = null;
+  completingTask: number | null = null;
   error: string | null = null;
-  
+
   // Modal states
   showAddModal = false;
+  showDetailsModal = false;
   showPendingOnly = false;
-  
+
   // Form data
   newTask: Partial<Task> = {};
   editingTask: Task | null = null;
+  selectedTask: Task | null = null;
 
-  constructor(private api: ApiService) { }
+  constructor(private api: ApiService, private cdr: ChangeDetectorRef) { }
 
   ngOnInit() {
+    // Load tasks immediately
     this.loadTasks();
-    this.loadUsers();
   }
 
   loadTasks() {
+    this.loading = true;
     this.error = null;
-    
-    // For now, we'll use mock data since the API might not have tasks endpoint
-    // In a real implementation, you would call: this.api.listTasks().subscribe({...})
-    
-    // Mock data for demonstration
-    setTimeout(() => {
-      this.tasks = [
-        {
-          id: 1,
-          title: 'Vérifier les stocks de vaccins',
-          description: 'Contrôler les quantités et dates d\'expiration',
-          assignedToUserId: 2,
-          assignedTo: 'Agent ONSSA',
-          createdByUserId: 1,
-          createdBy: 'Admin',
-          priority: 'HIGH',
-          status: 'PENDING',
-          dueDate: '2024-12-31',
-          createdAt: '2024-12-01',
-          updatedAt: '2024-12-01'
-        },
-        {
-          id: 2,
-          title: 'Traiter les réclamations en attente',
-          description: 'Examiner et résoudre les réclamations urgentes',
-          assignedToUserId: 3,
-          assignedTo: 'Vétérinaire',
-          createdByUserId: 1,
-          createdBy: 'Admin',
-          priority: 'CRITICAL',
-          status: 'IN_PROGRESS',
-          dueDate: '2024-12-15',
-          createdAt: '2024-12-01',
-          updatedAt: '2024-12-01'
-        },
-        {
-          id: 3,
-          title: 'Mettre à jour la base de données',
-          description: 'Synchroniser les données avec le serveur central',
-          assignedToUserId: 1,
-          assignedTo: 'Admin',
-          createdByUserId: 1,
-          createdBy: 'Admin',
-          priority: 'MEDIUM',
-          status: 'COMPLETED',
-          dueDate: '2024-12-10',
-          createdAt: '2024-12-01',
-          updatedAt: '2024-12-01'
-        }
-      ];
-    }, 1000);
-  }
+    console.log('🔄 Loading tasks...');
 
-  loadUsers() {
-    this.api.listUsers().subscribe({
+    this.api.listTasks().subscribe({
       next: (data) => {
-        this.users = data;
+        console.log('✅ Tasks loaded successfully:', data);
+        this.tasks = data || [];
+        this.loading = false;
+        this.cdr.detectChanges(); // Added this line
       },
       error: (error) => {
-        console.error('Error loading users:', error);
+        console.error('❌ Error loading tasks:', error);
+
+        // Handle different error scenarios
+        if (error?.status === 500) {
+          this.error = 'Erreur serveur. Veuillez vérifier que le backend est démarré sur le port 8082.';
+        } else if (error?.status === 0) {
+          this.error = 'Impossible de se connecter au serveur. Vérifiez que le backend est démarré.';
+        } else {
+          this.error = 'Erreur lors du chargement des tâches: ' + (error?.message || 'Erreur inconnue');
+        }
+
+        this.tasks = [];
+        this.loading = false;
+        this.cdr.detectChanges();
       }
     });
-  }
-
-  refreshTasks() {
-    this.loadTasks();
   }
 
   // Filter and display methods
   getFilteredTasks(): Task[] {
     if (this.showPendingOnly) {
-      return this.tasks.filter(t => t.status === 'PENDING');
+      return this.tasks.filter(t => t.status === 'A_FAIRE');
     }
     return this.tasks;
   }
 
   getCompletedTasksCount(): number {
-    return this.tasks.filter(t => t.status === 'COMPLETED').length;
+    return this.tasks.filter(t => t.status === 'TERMINE').length;
   }
 
   getPendingTasksCount(): number {
-    return this.tasks.filter(t => t.status === 'PENDING').length;
+    return this.tasks.filter(t => t.status === 'A_FAIRE').length;
   }
 
   getOverdueTasksCount(): number {
-    return this.tasks.filter(t => this.isOverdue(t)).length;
-  }
-
-  // Status checking methods
-  isOverdue(task: Task): boolean {
-    if (!task.dueDate || task.status === 'COMPLETED') return false;
-    return new Date(task.dueDate) < new Date();
-  }
-
-  isCritical(task: Task): boolean {
-    return task.priority === 'CRITICAL' && task.status !== 'COMPLETED';
-  }
-
-  isCompleted(task: Task): boolean {
-    return task.status === 'COMPLETED';
+    const today = new Date();
+    return this.tasks.filter(t => {
+      if (!t.dueDate || t.status === 'TERMINE') return false;
+      return new Date(t.dueDate) < today;
+    }).length;
   }
 
   // Display methods
-  getPriorityDisplay(priority: string): string {
-    const priorities: { [key: string]: string } = {
-      'LOW': 'Basse',
+  getPriorityText(priority: string): string {
+    const priorityMap: { [key: string]: string } = {
+      'LOW': 'Faible',
       'MEDIUM': 'Moyenne',
-      'HIGH': 'Haute',
-      'CRITICAL': 'Critique'
+      'HIGH': 'Élevée',
+      'URGENT': 'Urgent'
     };
-    return priorities[priority] || priority;
+    return priorityMap[priority] || priority;
   }
 
   getPriorityBadge(priority: string): string {
-    switch (priority) {
-      case 'LOW':
-        return 'badge bg-secondary';
-      case 'MEDIUM':
-        return 'badge bg-info';
-      case 'HIGH':
-        return 'badge bg-warning';
-      case 'CRITICAL':
-        return 'badge bg-danger';
-      default:
-        return 'badge bg-secondary';
-    }
+    const badgeMap: { [key: string]: string } = {
+      'LOW': 'badge bg-success',
+      'MEDIUM': 'badge bg-info',
+      'HIGH': 'badge bg-warning',
+      'URGENT': 'badge bg-danger'
+    };
+    return badgeMap[priority] || 'badge bg-secondary';
   }
 
-  getStatusDisplay(status: string): string {
-    const statuses: { [key: string]: string } = {
-      'PENDING': 'En Attente',
-      'IN_PROGRESS': 'En Cours',
-      'COMPLETED': 'Terminée',
-      'CANCELLED': 'Annulée'
+  getStatusText(status: string): string {
+    const statusMap: { [key: string]: string } = {
+      'A_FAIRE': 'En Attente',
+      'EN_COURS': 'En Cours',
+      'TERMINE': 'Terminée',
+      'ANNULE': 'Annulée'
     };
-    return statuses[status] || status;
+    return statusMap[status] || status;
   }
 
   getStatusBadge(status: string): string {
-    switch (status) {
-      case 'PENDING':
-        return 'badge bg-warning';
-      case 'IN_PROGRESS':
-        return 'badge bg-info';
-      case 'COMPLETED':
-        return 'badge bg-success';
-      case 'CANCELLED':
-        return 'badge bg-secondary';
-      default:
-        return 'badge bg-secondary';
-    }
-  }
-
-  getRoleDisplay(role: string): string {
-    const roles: { [key: string]: string } = {
-      'ADMIN': 'Admin',
-      'AGENT': 'Agent'
+    const badgeMap: { [key: string]: string } = {
+      'A_FAIRE': 'badge bg-warning',
+      'EN_COURS': 'badge bg-info',
+      'TERMINE': 'badge bg-success',
+      'ANNULE': 'badge bg-danger'
     };
-    return roles[role] || role;
+    return badgeMap[status] || 'badge bg-secondary';
   }
 
-  getAssignedTo(task: Task): string {
-    if (task.assignedTo) return task.assignedTo;
-    const user = this.users.find(u => u.id === task.assignedToUserId);
-    return user ? user.username : 'Non assigné';
-  }
-
-  getDueDateClass(dueDate?: string): string {
-    if (!dueDate) return 'text-muted';
-    const due = new Date(dueDate);
-    const now = new Date();
-    if (due < now) return 'text-danger fw-bold';
-    if (due.getTime() - now.getTime() < 7 * 24 * 60 * 60 * 1000) return 'text-warning fw-bold';
-    return 'text-success';
-  }
-
-  formatDate(date?: string): string {
-    if (!date) return 'Aucune date';
+  formatDate(date: string | undefined): string {
+    if (!date) return 'N/A';
     return new Date(date).toLocaleDateString('fr-FR');
   }
 
   // Modal methods
   openAddModal() {
     this.editingTask = null;
-    this.newTask = {
-      title: '',
-      description: '',
-      priority: 'MEDIUM',
-      status: 'PENDING'
-    };
+    this.newTask = {};
     this.showAddModal = true;
   }
 
   editTask(task: Task) {
     this.editingTask = task;
-    this.newTask = { ...task };
+    this.newTask = {
+      ...task,
+      dueDate: this.formatDateForBackend(task.dueDate) // Ensure date is properly formatted for the form
+    };
     this.showAddModal = true;
   }
 
@@ -566,81 +571,141 @@ export class TasksComponent implements OnInit {
     this.newTask = {};
   }
 
+  viewDetails(task: Task) {
+    this.selectedTask = task;
+    this.showDetailsModal = true;
+  }
+
+  closeDetailsModal() {
+    this.showDetailsModal = false;
+    this.selectedTask = null;
+  }
+
+  // Helper method to format date for backend
+  formatDateForBackend(date: any): string {
+    if (!date) return '';
+
+    // If it's already a Date object
+    if (date instanceof Date) {
+      return date.toISOString().split('T')[0];
+    }
+
+    // If it's a string like "2025-09-26", convert to proper format
+    const dateObj = new Date(date);
+    return dateObj.toISOString().split('T')[0];
+  }
+
   // Action methods
   saveTask() {
-    if (!this.newTask.title || !this.newTask.priority) {
-      alert('Veuillez remplir tous les champs obligatoires');
+    if (!this.newTask.title || !this.newTask.priority || !this.newTask.status || !this.newTask.dueDate) {
+      this.showErrorMessage('Veuillez remplir tous les champs obligatoires');
       return;
     }
 
     this.saving = true;
+    console.log('💾 Saving task:', this.newTask);
 
-    if (this.editingTask) {
-      // Update existing task
-      const updatedTask = { ...this.editingTask, ...this.newTask };
-      // In a real implementation: this.api.updateTask(this.editingTask.id, updatedTask).subscribe({...})
-      
-      setTimeout(() => {
-        const index = this.tasks.findIndex(t => t.id === this.editingTask!.id);
-        if (index !== -1) {
-          this.tasks[index] = updatedTask;
-        }
-        this.showSuccessMessage('Tâche modifiée avec succès');
-        this.closeModal();
-        this.saving = false;
-      }, 1000);
-    } else {
-      // Create new task
-      const newTask: Task = {
-        id: this.tasks.length + 1,
-        title: this.newTask.title!,
-        description: this.newTask.description,
-        assignedToUserId: this.newTask.assignedToUserId,
-        assignedTo: this.getAssignedTo({ assignedToUserId: this.newTask.assignedToUserId } as Task),
-        createdByUserId: 1, // Current user ID
-        createdBy: 'Admin',
-        priority: this.newTask.priority!,
-        status: 'PENDING',
-        dueDate: this.newTask.dueDate,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      
-      // In a real implementation: this.api.createTask(newTask).subscribe({...})
-      
-      setTimeout(() => {
-        this.tasks.push(newTask);
-        this.showSuccessMessage('Tâche créée avec succès');
-        this.closeModal();
-        this.saving = false;
-      }, 1000);
-    }
-  }
-
-  completeTask(taskId: number) {
-    if (!confirm('Êtes-vous sûr de vouloir marquer cette tâche comme terminée ?')) {
+    // Get current user ID
+    const currentUser = this.api.getCurrentUser();
+    if (!currentUser) {
+      this.showErrorMessage('Utilisateur non connecté');
+      this.saving = false;
       return;
     }
 
-    // In a real implementation: this.api.updateTaskStatus(taskId, 'COMPLETED').subscribe({...})
-    
-    const task = this.tasks.find(t => t.id === taskId);
-    if (task) {
-      task.status = 'COMPLETED';
-      task.updatedAt = new Date().toISOString();
-      this.showSuccessMessage('Tâche marquée comme terminée');
+    const taskData = {
+      title: this.newTask.title,
+      priority: this.newTask.priority,
+      status: this.newTask.status,
+      description: this.newTask.description,
+      dueDate: this.formatDateForBackend(this.newTask.dueDate),
+      createdByUserId: currentUser.userId
+    };
+
+    if (this.editingTask) {
+      // Update existing task
+      this.api.updateTask(this.editingTask.id, taskData).subscribe({
+        next: (response) => {
+          console.log('✅ Task updated successfully:', response);
+          this.saving = false;
+          this.showSuccessMessage('Tâche modifiée avec succès');
+          this.closeModal();
+          this.loadTasks();
+        },
+        error: (error) => {
+          console.error('❌ Error updating task:', error);
+          this.saving = false;
+
+          // Handle different error scenarios
+          if (error?.status === 404) {
+            this.showErrorMessage('Tâche non trouvée. Elle a peut-être déjà été supprimée.');
+          } else if (error?.status === 400) {
+            this.showErrorMessage('Données invalides. Vérifiez les informations saisies.');
+          } else if (error?.status === 500) {
+            this.showErrorMessage('Erreur serveur lors de la modification. Veuillez réessayer plus tard.');
+          } else {
+            this.showErrorMessage('Erreur lors de la modification: ' + (error?.message || 'Erreur inconnue'));
+          }
+        }
+      });
+    } else {
+      // Create new task
+      this.api.createTask(taskData).subscribe({
+        next: (response) => {
+          console.log('✅ Task created successfully:', response);
+          this.saving = false;
+          this.showSuccessMessage('Tâche créée avec succès');
+          this.closeModal();
+          this.loadTasks();
+        },
+        error: (error) => {
+          console.error('❌ Error creating task:', error);
+          this.saving = false;
+
+          // Handle different error scenarios
+          if (error?.status === 400) {
+            this.showErrorMessage('Données invalides. Vérifiez les informations saisies.');
+          } else if (error?.status === 500) {
+            this.showErrorMessage('Erreur serveur lors de la création. Veuillez réessayer plus tard.');
+          } else {
+            this.showErrorMessage('Erreur lors de la création: ' + (error?.message || 'Erreur inconnue'));
+          }
+        }
+      });
     }
   }
 
-  startTask(taskId: number) {
-    // In a real implementation: this.api.updateTaskStatus(taskId, 'IN_PROGRESS').subscribe({...})
-    
-    const task = this.tasks.find(t => t.id === taskId);
-    if (task) {
-      task.status = 'IN_PROGRESS';
-      task.updatedAt = new Date().toISOString();
-      this.showSuccessMessage('Tâche démarrée');
+  completeTask(task: Task) {
+    if (task.status === 'TERMINE') {
+      this.showErrorMessage('Cette tâche est déjà terminée');
+      return;
     }
+
+    this.completingTask = task.id;
+    const updatedTask = { ...task, status: 'TERMINE' as any };
+
+    this.api.updateTask(task.id, updatedTask).subscribe({
+      next: (response) => {
+        this.showSuccessMessage('Tâche marquée comme terminée');
+        this.loadTasks();
+        this.completingTask = null;
+      },
+      error: (error) => {
+        console.error('Error completing task:', error);
+
+        // Handle different error scenarios
+        if (error?.status === 404) {
+          this.showErrorMessage('Tâche non trouvée. Elle a peut-être déjà été supprimée.');
+        } else if (error?.status === 400) {
+          this.showErrorMessage('Statut invalide pour cette tâche.');
+        } else if (error?.status === 500) {
+          this.showErrorMessage('Erreur serveur lors de la mise à jour. Veuillez réessayer plus tard.');
+        } else {
+          this.showErrorMessage('Erreur lors de la mise à jour: ' + (error?.message || 'Erreur inconnue'));
+        }
+        this.completingTask = null;
+      }
+    });
   }
 
   deleteTask(taskId: number) {
@@ -650,53 +715,73 @@ export class TasksComponent implements OnInit {
 
     this.deletingTask = taskId;
 
-    // In a real implementation: this.api.deleteTask(taskId).subscribe({...})
-    
-    setTimeout(() => {
-      this.tasks = this.tasks.filter(t => t.id !== taskId);
-      this.showSuccessMessage('Tâche supprimée avec succès');
-      this.deletingTask = null;
-    }, 1000);
+    this.api.deleteTask(taskId).subscribe({
+      next: () => {
+        this.showSuccessMessage('Tâche supprimée avec succès');
+        this.loadTasks();
+        this.deletingTask = null;
+      },
+      error: (error) => {
+        console.error('Error deleting task:', error);
+
+        // Handle different error scenarios
+        if (error?.status === 404) {
+          this.showErrorMessage('Tâche non trouvée. Elle a peut-être déjà été supprimée.');
+        } else if (error?.status === 409) {
+          this.showErrorMessage('Impossible de supprimer cette tâche car elle a des dépendances.');
+        } else if (error?.status === 500) {
+          this.showErrorMessage('Erreur serveur lors de la suppression. Veuillez réessayer plus tard.');
+        } else {
+          this.showErrorMessage('Erreur lors de la suppression: ' + (error?.message || 'Erreur inconnue'));
+        }
+        this.deletingTask = null;
+      }
+    });
   }
 
   exportToCSV() {
-    const headers = ['ID', 'Titre', 'Description', 'Assigné à', 'Priorité', 'Statut', 'Date Limite', 'Date Création'];
-    const data = this.tasks.map(t => [
-      t.id,
-      t.title,
-      t.description || '',
-      this.getAssignedTo(t),
-      this.getPriorityDisplay(t.priority),
-      this.getStatusDisplay(t.status),
-      this.formatDate(t.dueDate),
-      this.formatDate(t.createdAt)
-    ]);
-
-    const csvContent = [headers, ...data]
-      .map(row => row.map(cell => `"${cell}"`).join(','))
-      .join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `taches_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    this.showSuccessMessage('Export CSV terminé');
+    // Implementation for CSV export
+    this.showSuccessMessage('Export CSV fonctionnalité sera implémentée ici');
   }
 
   // Utility methods
   showSuccessMessage(message: string) {
-    // You can implement a toast notification system here
-    alert(message);
+    // Simple toast notification
+    const toast = document.createElement('div');
+    toast.className = 'toast-notification success';
+    toast.innerHTML = `
+      <div class="toast-content">
+        <i class="bi bi-check-circle me-2"></i>
+        ${message}
+      </div>
+    `;
+    document.body.appendChild(toast);
+
+    // Remove after 3 seconds
+    setTimeout(() => {
+      if (toast.parentNode) {
+        toast.parentNode.removeChild(toast);
+      }
+    }, 3000);
   }
 
   showErrorMessage(message: string) {
-    // You can implement a toast notification system here
-    alert(message);
+    // Simple toast notification
+    const toast = document.createElement('div');
+    toast.className = 'toast-notification error';
+    toast.innerHTML = `
+      <div class="toast-content">
+        <i class="bi bi-exclamation-triangle me-2"></i>
+        ${message}
+      </div>
+    `;
+    document.body.appendChild(toast);
+
+    // Remove after 5 seconds
+    setTimeout(() => {
+      if (toast.parentNode) {
+        toast.parentNode.removeChild(toast);
+      }
+    }, 5000);
   }
 }

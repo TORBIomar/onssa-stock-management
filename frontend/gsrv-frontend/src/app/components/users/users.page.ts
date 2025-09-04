@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormsModule, FormBuilder, Validators, FormGroup } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
@@ -27,20 +27,17 @@ interface User {
           <p class="text-muted">Gestion des comptes et des permissions</p>
         </div>
         <div class="btn-group">
-          <button class="btn btn-outline-primary btn-sm" (click)="refreshUsers()">
-            <i class="bi bi-arrow-clockwise me-2"></i>
-            Actualiser
-          </button>
           <button class="btn btn-primary btn-sm" (click)="openAddModal()">
             <i class="bi bi-plus me-2"></i>Nouvel Utilisateur
+          </button>
+          <button class="btn btn-outline-secondary btn-sm" (click)="loadUsers()">
+            <i class="bi bi-arrow-clockwise me-2"></i>Actualiser
           </button>
         </div>
       </div>
 
-      <!-- Users Content -->
-      <div class="row g-4">
-        
-        <!-- Statistics Cards -->
+      <!-- Statistics Cards -->
+      <div class="row g-4 mb-4">
         <div class="col-md-3">
           <div class="card stat-card bg-primary text-white">
             <div class="card-body text-center">
@@ -80,95 +77,74 @@ interface User {
             </div>
           </div>
         </div>
-
-        <!-- Users Table -->
-        <div class="col-12">
-          <div class="card shadow-sm">
-            <div class="card-header d-flex justify-content-between align-items-center">
-              <h5 class="mb-0"><i class="bi bi-list me-2"></i>Liste des Utilisateurs</h5>
-              <div class="btn-group btn-group-sm">
-                <button class="btn btn-outline-secondary" (click)="exportToCSV()">
-                  <i class="bi bi-download me-1"></i>Exporter
-                </button>
-                <button class="btn btn-outline-info" (click)="showActiveOnly = !showActiveOnly">
-                  <i class="bi bi-filter me-1"></i>{{ showActiveOnly ? 'Tous' : 'Actifs' }}
-                </button>
-              </div>
-            </div>
-            <div class="card-body">
-              <div class="table-responsive">
-                <table class="table table-hover">
-                  <thead class="table-light">
-                    <tr>
-                      <th>ID</th>
-                      <th>Utilisateur</th>
-                      <th>Email</th>
-                      <th>Rôle</th>
-                      <th>Statut</th>
-                      <th>Date Création</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr *ngFor="let user of getFilteredUsers()" 
-                        [class.table-success]="user.active"
-                        [class.table-warning]="!user.active">
-                      <td>{{ user.id }}</td>
-                      <td>
-                        <strong>{{ user.username }}</strong>
-                      </td>
-                      <td>{{ user.email }}</td>
-                      <td>
-                        <span [class]="getRoleBadgeClass(user.role)">
-                          {{ getRoleDisplay(user.role) }}
-                        </span>
-                      </td>
-                      <td>
-                        <span [class]="getStatusBadgeClass(user.active)">
-                          {{ user.active ? 'Actif' : 'Inactif' }}
-                        </span>
-                      </td>
-                      <td>
-                        <span class="text-muted">{{ formatDate(user.createdAt) }}</span>
-                      </td>
-                      <td>
-                        <div class="btn-group btn-group-sm">
-                          <button class="btn btn-outline-primary" (click)="editUser(user)" title="Modifier">
-                            <i class="bi bi-pencil"></i>
-                          </button>
-                          <button class="btn btn-outline-success" (click)="toggleUserStatus(user)" 
-                                  [disabled]="togglingUser === user.id" title="{{ user.active ? 'Désactiver' : 'Activer' }}">
-                            <i class="bi" [class]="user.active ? 'bi-person-x' : 'bi-person-check'"></i>
-                          </button>
-                          <button class="btn btn-outline-warning" (click)="resetPassword(user)" 
-                                  [disabled]="resettingPassword === user.id" title="Réinitialiser Mot de Passe">
-                            <i class="bi bi-key"></i>
-                          </button>
-                          <button class="btn btn-outline-danger" (click)="deleteUser(user.id)" 
-                                  [disabled]="deletingUser === user.id" title="Supprimer">
-                            <i class="bi" [class]="deletingUser === user.id ? 'bi-hourglass-split' : 'bi-trash'"></i>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
-
       </div>
 
-      <!-- Error State -->
-      <div *ngIf="!users && error" class="text-center py-5">
-        <div class="alert alert-danger" role="alert">
-          <i class="bi bi-exclamation-triangle me-2"></i>
-          {{ error }}
+      <!-- Users Table -->
+      <div class="card shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="mb-0"><i class="bi bi-list me-2"></i>Liste des Utilisateurs</h5>
+          <div class="btn-group btn-group-sm">
+            <button class="btn btn-outline-secondary" (click)="exportToCSV()">
+              <i class="bi bi-download me-1"></i>Exporter
+            </button>
+            <button class="btn btn-outline-info" (click)="toggleActiveFilter()">
+              <i class="bi bi-filter me-1"></i>{{ showActiveOnly ? 'Tous' : 'Actifs' }}
+            </button>
+          </div>
         </div>
-        <button class="btn btn-primary" (click)="refreshUsers()">
-          <i class="bi bi-arrow-clockwise me-2"></i>Réessayer
-        </button>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-hover">
+              <thead class="table-light">
+                <tr>
+                  <th>ID</th>
+                  <th>Utilisateur</th>
+                  <th>Email</th>
+                  <th>Rôle</th>
+                  <th>Statut</th>
+                  <th>Date Création</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let user of getFilteredUsers()" 
+                    [class.table-success]="user.active"
+                    [class.table-warning]="!user.active">
+                  <td>{{ user.id }}</td>
+                  <td><strong>{{ user.username }}</strong></td>
+                  <td>{{ user.email }}</td>
+                  <td>
+                    <span [class]="getRoleBadge(user.role)">
+                      {{ getRoleText(user.role) }}
+                    </span>
+                  </td>
+                  <td>
+                    <span [class]="getStatusBadge(user.active)">
+                      {{ user.active ? 'Actif' : 'Inactif' }}
+                    </span>
+                  </td>
+                  <td>{{ formatDate(user.createdAt) }}</td>
+                  <td>
+                    <div class="btn-group btn-group-sm">
+                      <button class="btn btn-outline-primary" (click)="editUser(user)" title="Modifier">
+                        <i class="bi bi-pencil"></i>
+                      </button>
+                      <button class="btn btn-outline-info" (click)="viewDetails(user)" title="Détails">
+                        <i class="bi bi-eye"></i>
+                      </button>
+                      <button class="btn btn-outline-warning" (click)="toggleUserStatus(user)" title="Changer Statut">
+                        <i class="bi bi-toggle-on"></i>
+                      </button>
+                      <button class="btn btn-outline-danger" (click)="deleteUser(user.id)" title="Supprimer">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
       <!-- Add/Edit User Modal -->
@@ -180,18 +156,17 @@ interface User {
                 <i class="bi" [class]="editingUser ? 'bi-pencil' : 'bi-plus'"></i>
                 {{ editingUser ? 'Modifier l\'Utilisateur' : 'Nouvel Utilisateur' }}
               </h5>
-              <button type="button" class="btn-close" (click)="closeModal()" [disabled]="saving"></button>
+              <button type="button" class="btn-close" (click)="closeModal()"></button>
             </div>
             <div class="modal-body">
-              <form [formGroup]="form" (ngSubmit)="saveUser()">
+              <form [formGroup]="userForm" (ngSubmit)="saveUser()">
                 <div class="row">
                   <div class="col-md-6">
                     <div class="mb-3">
                       <label class="form-label">Nom d'utilisateur *</label>
-                      <input class="form-control" formControlName="username" 
-                             [readonly]="editingUser" />
-                      <div class="invalid-feedback d-block" 
-                           *ngIf="form.get('username')?.invalid && form.get('username')?.touched">
+                      <input type="text" class="form-control" formControlName="username" 
+                             [class.is-invalid]="userForm.get('username')?.invalid && userForm.get('username')?.touched">
+                      <div class="invalid-feedback" *ngIf="userForm.get('username')?.invalid && userForm.get('username')?.touched">
                         Le nom d'utilisateur est requis
                       </div>
                     </div>
@@ -199,9 +174,9 @@ interface User {
                   <div class="col-md-6">
                     <div class="mb-3">
                       <label class="form-label">Email *</label>
-                      <input class="form-control" type="email" formControlName="email" />
-                      <div class="invalid-feedback d-block" 
-                           *ngIf="form.get('email')?.invalid && form.get('email')?.touched">
+                      <input type="email" class="form-control" formControlName="email"
+                             [class.is-invalid]="userForm.get('email')?.invalid && userForm.get('email')?.touched">
+                      <div class="invalid-feedback" *ngIf="userForm.get('email')?.invalid && userForm.get('email')?.touched">
                         Email invalide
                       </div>
                     </div>
@@ -210,46 +185,25 @@ interface User {
                 <div class="row">
                   <div class="col-md-6">
                     <div class="mb-3">
-                      <label class="form-label">Rôle *</label>
-                      <select class="form-select" formControlName="role">
-                        <option value="">Sélectionner un rôle</option>
-                        <option value="ADMIN">Admin</option>
-                        <option value="AGENT">Agent</option>
-                      </select>
-                      <div class="invalid-feedback d-block" 
-                           *ngIf="form.get('role')?.invalid && form.get('role')?.touched">
-                        Le rôle est requis
-                      </div>
-                    </div>
-                  </div>
-                  <div class="col-md-6">
-                    <div class="mb-3">
-                      <label class="form-label">Statut</label>
-                      <select class="form-select" formControlName="active">
-                        <option value="true">Actif</option>
-                        <option value="false">Inactif</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-                <div class="row" *ngIf="!editingUser">
-                  <div class="col-md-6">
-                    <div class="mb-3">
                       <label class="form-label">Mot de passe *</label>
-                      <input class="form-control" type="password" formControlName="password" />
-                      <div class="invalid-feedback d-block" 
-                           *ngIf="form.get('password')?.invalid && form.get('password')?.touched">
+                      <input type="password" class="form-control" formControlName="password"
+                             [class.is-invalid]="userForm.get('password')?.invalid && userForm.get('password')?.touched">
+                      <div class="invalid-feedback" *ngIf="userForm.get('password')?.invalid && userForm.get('password')?.touched">
                         Le mot de passe est requis (min 6 caractères)
                       </div>
                     </div>
                   </div>
                   <div class="col-md-6">
                     <div class="mb-3">
-                      <label class="form-label">Confirmer le mot de passe *</label>
-                      <input class="form-control" type="password" formControlName="confirmPassword" />
-                      <div class="invalid-feedback d-block" 
-                           *ngIf="form.get('confirmPassword')?.invalid && form.get('confirmPassword')?.touched">
-                        Les mots de passe ne correspondent pas
+                      <label class="form-label">Rôle *</label>
+                      <select class="form-select" formControlName="role"
+                              [class.is-invalid]="userForm.get('role')?.invalid && userForm.get('role')?.touched">
+                        <option value="">Sélectionner un rôle</option>
+                        <option value="ADMIN">Administrateur</option>
+                        <option value="AGENT">Agent</option>
+                      </select>
+                      <div class="invalid-feedback" *ngIf="userForm.get('role')?.invalid && userForm.get('role')?.touched">
+                        Le rôle est requis
                       </div>
                     </div>
                   </div>
@@ -257,59 +211,64 @@ interface User {
               </form>
             </div>
             <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" (click)="closeModal()" [disabled]="saving">Annuler</button>
-              <button type="button" class="btn btn-primary" (click)="saveUser()" 
-                      [disabled]="form.invalid || saving">
-                <span *ngIf="!saving">
-                  <i class="bi" [class]="editingUser ? 'bi-check' : 'bi-plus'"></i>
-                  {{ editingUser ? 'Modifier' : 'Créer' }}
-                </span>
-                <span *ngIf="saving" class="spinner-border spinner-border-sm me-2"></span>
-                {{ saving ? 'Enregistrement...' : '' }}
+              <button type="button" class="btn btn-secondary" (click)="closeModal()">Annuler</button>
+              <button type="button" class="btn btn-primary" (click)="saveUser()" [disabled]="!userForm.valid">
+                <i class="bi" [class]="editingUser ? 'bi-check' : 'bi-plus'"></i>
+                {{ editingUser ? 'Modifier' : 'Créer' }}
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Reset Password Modal -->
-      <div *ngIf="showResetModal" class="modal fade show d-block" style="background-color: rgba(0,0,0,0.5);">
-        <div class="modal-dialog">
+      <!-- User Details Modal -->
+      <div *ngIf="showDetailsModal" class="modal fade show d-block" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
           <div class="modal-content">
             <div class="modal-header">
               <h5 class="modal-title">
-                <i class="bi bi-key me-2"></i>
-                Réinitialiser le Mot de Passe
+                <i class="bi bi-eye me-2"></i>
+                Détails de l'Utilisateur
               </h5>
-              <button type="button" class="btn-close" (click)="closeResetModal()" [disabled]="resettingPassword"></button>
+              <button type="button" class="btn-close" (click)="closeDetailsModal()"></button>
             </div>
             <div class="modal-body">
-              <div class="mb-3">
-                <label class="form-label">Utilisateur</label>
-                <input type="text" class="form-control" [value]="selectedUser?.username" readonly>
-              </div>
-              <div class="mb-3">
-                <label class="form-label">Nouveau mot de passe *</label>
-                <input type="password" class="form-control" [(ngModel)]="newPassword" minlength="6">
-              </div>
-              <div class="mb-3">
-                <label class="form-label">Confirmer le mot de passe *</label>
-                <input type="password" class="form-control" [(ngModel)]="confirmNewPassword" minlength="6">
-              </div>
-              <div class="alert alert-info">
-                <i class="bi bi-info-circle me-2"></i>
-                Le mot de passe doit contenir au moins 6 caractères.
+              <div *ngIf="selectedUser" class="row g-3">
+                <div class="col-md-6">
+                  <div class="card bg-light">
+                    <div class="card-body">
+                      <h6 class="card-title text-primary">Informations Générales</h6>
+                      <p><strong>ID:</strong> {{ selectedUser.id }}</p>
+                      <p><strong>Nom d'utilisateur:</strong> {{ selectedUser.username }}</p>
+                      <p><strong>Email:</strong> {{ selectedUser.email }}</p>
+                      <p><strong>Rôle:</strong> 
+                        <span [class]="getRoleBadge(selectedUser.role)">
+                          {{ getRoleText(selectedUser.role) }}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="card bg-light">
+                    <div class="card-body">
+                      <h6 class="card-title text-info">Statut</h6>
+                      <p><strong>Statut:</strong> 
+                        <span [class]="getStatusBadge(selectedUser.active)">
+                          {{ selectedUser.active ? 'Actif' : 'Inactif' }}
+                        </span>
+                      </p>
+                      <p><strong>Date de création:</strong> {{ formatDate(selectedUser.createdAt) }}</p>
+                      <p><strong>Dernière mise à jour:</strong> {{ formatDate(selectedUser.updatedAt) }}</p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
             <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" (click)="closeResetModal()" [disabled]="resettingPassword">Annuler</button>
-              <button type="button" class="btn btn-warning" (click)="confirmResetPassword()" 
-                      [disabled]="!newPassword || newPassword !== confirmNewPassword || newPassword.length < 6 || resettingPassword">
-                <span *ngIf="!resettingPassword">
-                  <i class="bi bi-check me-2"></i>Réinitialiser
-                </span>
-                <span *ngIf="resettingPassword" class="spinner-border spinner-border-sm me-2"></span>
-                {{ resettingPassword ? 'Réinitialisation...' : '' }}
+              <button type="button" class="btn btn-secondary" (click)="closeDetailsModal()">Fermer</button>
+              <button type="button" class="btn btn-primary" (click)="editUser(selectedUser!)">
+                <i class="bi bi-pencil me-2"></i>Modifier
               </button>
             </div>
           </div>
@@ -371,113 +330,98 @@ interface User {
       padding: 0.5em 0.8em;
       border-radius: 8px;
     }
-
-    .spin {
-      animation: spin 1s linear infinite;
-    }
-
-    @keyframes spin {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
-    }
   `]
 })
 export class UsersPageComponent implements OnInit {
   users: User[] = [];
-  saving = false;
-  resettingPassword: number | null = null;
-  togglingUser: number | null = null;
-  deletingUser: number | null = null;
   error: string | null = null;
 
   // Modal states
   showAddModal = false;
-  showResetModal = false;
+  showDetailsModal = false;
   showActiveOnly = false;
 
   // Form data
-  form: FormGroup;
+  userForm: FormGroup;
   editingUser: User | null = null;
   selectedUser: User | null = null;
-  newPassword = '';
-  confirmNewPassword = '';
 
   constructor(
     private api: ApiService,
-    private fb: FormBuilder
+    private fb: FormBuilder,
+    private cdr: ChangeDetectorRef
   ) {
-    this.form = this.fb.group({
+    this.userForm = this.fb.group({
       username: ['', [Validators.required, Validators.minLength(3)]],
       email: ['', [Validators.required, Validators.email]],
-      role: ['', Validators.required],
-      active: [true],
       password: ['', [Validators.required, Validators.minLength(6)]],
-      confirmPassword: ['', Validators.required]
-    }, { validators: this.passwordMatchValidator });
+      role: ['', Validators.required]
+    });
   }
 
   ngOnInit() {
     this.loadUsers();
   }
 
+  // Data loading functions
   loadUsers() {
-    this.error = null;
-
     this.api.listUsers().subscribe({
       next: (data) => {
-        this.users = data;
+        this.users = data || [];
+        this.error = null;
+        this.cdr.detectChanges(); // Added detectChanges() here
       },
       error: (error) => {
         this.error = error.message || 'Erreur lors du chargement des utilisateurs';
+        this.users = [];
+        this.cdr.detectChanges(); // Added detectChanges() here
       }
     });
   }
 
-  refreshUsers() {
-    this.loadUsers();
-  }
-
-  // Filter and display methods
+  // Filter functions
   getFilteredUsers(): User[] {
     if (this.showActiveOnly) {
-      return this.users.filter(u => u.active);
+      return this.users.filter(user => user.active);
     }
     return this.users;
   }
 
+  toggleActiveFilter() {
+    this.showActiveOnly = !this.showActiveOnly;
+  }
+
+  // Statistics functions
   getActiveCount(): number {
-    return this.users.filter(u => u.active).length;
+    return this.users.filter(user => user.active).length;
   }
 
   getInactiveCount(): number {
-    return this.users.filter(u => !u.active).length;
+    return this.users.filter(user => !user.active).length;
   }
 
   getAdminCount(): number {
-    return this.users.filter(u => u.role === 'ADMIN').length;
+    return this.users.filter(user => user.role === 'ADMIN').length;
   }
 
-  // Display methods
-  getRoleDisplay(role: string): string {
-    const roles: { [key: string]: string } = {
-      'ADMIN': 'Admin',
+  // Display functions
+  getRoleText(role: string): string {
+    const roleMap: { [key: string]: string } = {
+      'ADMIN': 'Administrateur',
       'AGENT': 'Agent'
     };
-    return roles[role] || role;
+    return roleMap[role] || role;
   }
 
-  getRoleBadgeClass(role: string): string {
-    switch (role) {
-      case 'ADMIN':
-        return 'badge bg-danger';
-      case 'AGENT':
-        return 'badge bg-info';
-      default:
-        return 'badge bg-secondary';
-    }
+  getRoleBadge(role: string): string {
+    const badgeMap: { [key: string]: string } = {
+      'ADMIN': 'badge bg-danger',
+      'AGENT': 'badge bg-primary'
+    };
+    return badgeMap[role] || 'badge bg-secondary';
   }
 
-  getStatusBadgeClass(active: boolean): string {
+  getStatusBadge(active: boolean): string {
     return active ? 'badge bg-success' : 'badge bg-warning';
   }
 
@@ -486,35 +430,20 @@ export class UsersPageComponent implements OnInit {
     return new Date(date).toLocaleDateString('fr-FR');
   }
 
-  // Form validation
-  passwordMatchValidator(form: FormGroup) {
-    const password = form.get('password');
-    const confirmPassword = form.get('confirmPassword');
-
-    if (password && confirmPassword && password.value !== confirmPassword.value) {
-      confirmPassword.setErrors({ passwordMismatch: true });
-      return { passwordMismatch: true };
-    }
-
-    return null;
-  }
-
-  // Modal methods
+  // Modal functions
   openAddModal() {
     this.editingUser = null;
-    this.form.reset({
-      active: true
-    });
+    this.userForm.reset();
     this.showAddModal = true;
   }
 
   editUser(user: User) {
     this.editingUser = user;
-    this.form.patchValue({
+    this.userForm.patchValue({
       username: user.username,
       email: user.email,
-      role: user.role,
-      active: user.active
+      password: '', // Don't populate password for security
+      role: user.role
     });
     this.showAddModal = true;
   }
@@ -522,173 +451,89 @@ export class UsersPageComponent implements OnInit {
   closeModal() {
     this.showAddModal = false;
     this.editingUser = null;
-    this.form.reset();
+    this.userForm.reset();
   }
 
-  resetPassword(user: User) {
+  viewDetails(user: User) {
     this.selectedUser = user;
-    this.newPassword = '';
-    this.confirmNewPassword = '';
-    this.showResetModal = true;
+    this.showDetailsModal = true;
   }
 
-  closeResetModal() {
-    this.showResetModal = false;
+  closeDetailsModal() {
+    this.showDetailsModal = false;
     this.selectedUser = null;
-    this.newPassword = '';
-    this.confirmNewPassword = '';
   }
 
-  // Action methods
+  // Action functions
   saveUser() {
-    if (this.form.invalid) {
+    if (this.userForm.invalid) {
+      alert('Veuillez corriger les erreurs dans le formulaire');
       return;
     }
 
-    this.saving = true;
-    const userData = this.form.value;
+    const userData = this.userForm.value;
 
     if (this.editingUser) {
-      // Update existing user
-      const updateData = {
-        id: this.editingUser.id,
-        username: userData.username,
-        email: userData.email,
-        role: userData.role,
-        active: userData.active
-      };
-
-      this.api.updateUser(this.editingUser.id, updateData).subscribe({
-        next: (response) => {
-          this.showSuccessMessage('Utilisateur modifié avec succès');
+      this.api.updateUser(this.editingUser.id, userData).subscribe({
+        next: () => {
           this.closeModal();
           this.loadUsers();
+          alert('Utilisateur modifié avec succès');
         },
         error: (error) => {
-          this.showErrorMessage('Erreur lors de la modification: ' + error.message);
-          this.saving = false;
+          alert('Erreur lors de la modification: ' + error.message);
         }
       });
     } else {
-      // Create new user
-      const createData = {
-        username: userData.username,
-        email: userData.email,
-        role: userData.role,
-        active: userData.active,
-        password: userData.password
-      };
-
-      this.api.createUser(createData).subscribe({
-        next: (response) => {
-          this.showSuccessMessage('Utilisateur créé avec succès');
+      this.api.createUser(userData).subscribe({
+        next: () => {
           this.closeModal();
           this.loadUsers();
+          alert('Utilisateur créé avec succès');
         },
         error: (error) => {
-          this.showErrorMessage('Erreur lors de la création: ' + error.message);
-          this.saving = false;
+          alert('Erreur lors de la création: ' + error.message);
         }
       });
     }
   }
 
   toggleUserStatus(user: User) {
-    const action = user.active ? 'désactiver' : 'activer';
-    if (!confirm(`Êtes-vous sûr de vouloir ${action} cet utilisateur ?`)) {
-      return;
+    if (confirm(`Êtes-vous sûr de vouloir ${user.active ? 'désactiver' : 'activer'} cet utilisateur ?`)) {
+      const updatedUser = { ...user, active: !user.active };
+
+      this.api.updateUser(user.id, updatedUser).subscribe({
+        next: () => {
+          this.loadUsers();
+          alert(`Utilisateur ${user.active ? 'désactivé' : 'activé'} avec succès`);
+        },
+        error: (error) => {
+          alert('Erreur lors du changement de statut: ' + error.message);
+        }
+      });
     }
-
-    this.togglingUser = user.id;
-
-    this.api.toggleUserStatus(user.id).subscribe({
-      next: (response) => {
-        this.showSuccessMessage(`Utilisateur ${action} avec succès`);
-        this.loadUsers();
-      },
-      error: (error) => {
-        this.showErrorMessage(`Erreur lors de la ${action}: ` + error.message);
-        this.togglingUser = null;
-      }
-    });
-  }
-
-  confirmResetPassword() {
-    if (!this.selectedUser || !this.newPassword || this.newPassword !== this.confirmNewPassword) {
-      alert('Veuillez saisir un mot de passe valide');
-      return;
-    }
-
-    this.resettingPassword = this.selectedUser.id;
-
-    // Note: You'll need to implement this method in your API service
-    this.api.resetUserPassword(this.selectedUser.id, this.newPassword).subscribe({
-      next: (response: any) => {
-        this.showSuccessMessage('Mot de passe réinitialisé avec succès');
-        this.closeResetModal();
-      },
-      error: (error: any) => {
-        this.showErrorMessage('Erreur lors de la réinitialisation: ' + error.message);
-        this.resettingPassword = null;
-      }
-    });
   }
 
   deleteUser(userId: number) {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ? Cette action est irréversible.')) {
+    if (!this.api.isAuthenticated()) {
+      alert('Vous devez être connecté pour supprimer un utilisateur');
       return;
     }
 
-    this.deletingUser = userId;
-
-    this.api.deleteUser(userId).subscribe({
-      next: () => {
-        this.showSuccessMessage('Utilisateur supprimé avec succès');
-        this.loadUsers();
-      },
-      error: (error) => {
-        this.showErrorMessage('Erreur lors de la suppression: ' + error.message);
-        this.deletingUser = null;
-      }
-    });
+    if (confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) {
+      this.api.deleteUser(userId).subscribe({
+        next: () => {
+          this.loadUsers();
+          alert('Utilisateur supprimé avec succès');
+        },
+        error: (error) => {
+          alert('Erreur lors de la suppression: ' + error.message);
+        }
+      });
+    }
   }
 
   exportToCSV() {
-    const headers = ['ID', 'Nom d\'utilisateur', 'Email', 'Rôle', 'Statut', 'Date Création'];
-    const data = this.users.map(u => [
-      u.id,
-      u.username,
-      u.email,
-      this.getRoleDisplay(u.role),
-      u.active ? 'Actif' : 'Inactif',
-      this.formatDate(u.createdAt)
-    ]);
-
-    const csvContent = [headers, ...data]
-      .map(row => row.map(cell => `"${cell}"`).join(','))
-      .join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `utilisateurs_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    this.showSuccessMessage('Export CSV terminé');
-  }
-
-  // Utility methods
-  showSuccessMessage(message: string) {
-    // You can implement a toast notification system here
-    alert(message);
-  }
-
-  showErrorMessage(message: string) {
-    // You can implement a toast notification system here
-    alert(message);
+    alert('Export CSV fonctionnalité sera implémentée ici');
   }
 }

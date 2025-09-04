@@ -7,16 +7,11 @@ import { throwError } from 'rxjs';
 export const httpInterceptor: HttpInterceptorFn = (request, next) => {
   const router = inject(Router);
 
-  // Add loading indicator
-  showLoading();
-
   // Clone the request and add headers
   const modifiedRequest = addHeaders(request);
 
   return next(modifiedRequest).pipe(
     catchError((error: HttpErrorResponse) => {
-      hideLoading();
-
       if (error.status === 401) {
         // Unauthorized - redirect to login
         handleUnauthorized(router);
@@ -80,28 +75,7 @@ function handleServerError(): void {
   console.log('ERROR: Erreur serveur. Veuillez réessayer plus tard.');
 }
 
-function showLoading(): void {
-  // You can implement a global loading service here
-  // For now, we'll use a simple approach
-  if (typeof document === 'undefined') {
-    return;
-  }
-
-  const loadingElement = document.getElementById('global-loading');
-  if (loadingElement) {
-    loadingElement.style.display = 'block';
-  }
-}
-
-function hideLoading(): void {
-  if (typeof document === 'undefined') {
-    return;
-  }
-
-  const loadingElement = document.getElementById('global-loading');
-  if (loadingElement) {
-    loadingElement.style.display = 'none';
-  }
-}
+// Removed showLoading and hideLoading functions since they were causing issues
+// Loading state is now handled by individual components
 
 

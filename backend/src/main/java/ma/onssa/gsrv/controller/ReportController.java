@@ -14,6 +14,8 @@ import java.net.URI;
 import java.util.List;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.HttpStatus;
+import ma.onssa.gsrv.dto.ReportListDto;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/reports")
@@ -47,8 +49,17 @@ public class ReportController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'AGENT')")
-    public List<Report> list() {
-        return reportService.listAll();
+    public ResponseEntity<List<ReportListDto>> list() {
+        try {
+            logger.info("Fetching all reports");
+            List<ReportListDto> reports = reportService.listAllAsDto();
+            logger.info("Successfully fetched {} reports", reports.size());
+            return ResponseEntity.ok(reports);
+        } catch (Exception e) {
+            logger.error("Error fetching reports", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(List.of()); // Return empty list instead of null
+        }
     }
 
     @GetMapping("/{id}")
@@ -63,13 +74,38 @@ public class ReportController {
 
     @GetMapping("/type/{type}")
     @PreAuthorize("hasAnyRole('ADMIN', 'AGENT')")
-    public List<Report> getByType(@PathVariable String type) {
-        return reportService.getByType(type);
+    public ResponseEntity<List<ReportListDto>> getByType(@PathVariable String type) {
+        try {
+            logger.info("Fetching reports by type: {}", type);
+            List<Report> reports = reportService.getByType(type);
+            List<ReportListDto> dtos = reports.stream()
+                    .map(reportService::convertToDto)
+                    .collect(Collectors.toList());
+            logger.info("Successfully fetched {} reports of type {}", dtos.size(), type);
+            return ResponseEntity.ok(dtos);
+        } catch (Exception e) {
+            logger.error("Error fetching reports by type: {}", type, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(List.of());
+        }
     }
 
     @GetMapping("/status/{status}")
-    public List<Report> getByStatus(@PathVariable String status) {
-        return reportService.getByStatus(status);
+    @PreAuthorize("hasAnyRole('ADMIN', 'AGENT')")
+    public ResponseEntity<List<ReportListDto>> getByStatus(@PathVariable String status) {
+        try {
+            logger.info("Fetching reports by status: {}", status);
+            List<Report> reports = reportService.getByStatus(status);
+            List<ReportListDto> dtos = reports.stream()
+                    .map(reportService::convertToDto)
+                    .collect(Collectors.toList());
+            logger.info("Successfully fetched {} reports with status {}", dtos.size(), status);
+            return ResponseEntity.ok(dtos);
+        } catch (Exception e) {
+            logger.error("Error fetching reports by status: {}", status, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(List.of());
+        }
     }
 
     @PutMapping("/{id}")
@@ -190,7 +226,22 @@ public class ReportController {
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
-        reportService.delete(id);
-        return ResponseEntity.noContent().build();
+        try {
+            logger.info("Deleting report with ID: {}", id);
+            reportService.delete(id);
+            logger.info("Report deleted successfully with ID: {}", id);
+            return ResponseEntity.noContent().build();
+        } catch (RuntimeException e) {
+            if (e.getMessage().contains("not found")) {
+                logger.warn("Report not found with ID: {}", id);
+                return ResponseEntity.notFound().build();
+            } else {
+                logger.error("Error deleting report with ID {}: ", id, e);
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            }
+        } catch (Exception e) {
+            logger.error("Unexpected error deleting report with ID {}: ", id, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 }

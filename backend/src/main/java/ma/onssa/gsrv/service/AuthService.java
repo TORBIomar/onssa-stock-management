@@ -21,7 +21,8 @@ public class AuthService {
     }
 
     public LoginResponse login(LoginRequest request) {
-        User user = userRepository.findByUsername(request.username)
+        // Support login with either username or email
+        User user = userRepository.findByUsernameOrEmail(request.username, request.username)
                 .orElseThrow(() -> new IllegalArgumentException("Invalid username or password"));
 
         if (!passwordEncoder.matches(request.password, user.getPasswordHash())) {

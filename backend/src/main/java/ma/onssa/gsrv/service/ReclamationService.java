@@ -6,6 +6,7 @@ import ma.onssa.gsrv.repository.ReclamationRepository;
 import ma.onssa.gsrv.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -79,8 +80,23 @@ public class ReclamationService {
     }
 
     public void delete(Long id) {
+        logger.info("Attempting to delete reclamation with ID: {}", id);
+        
+        // Check if reclamation exists
         Reclamation reclamation = reclamationRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Reclamation not found: " + id));
-        reclamationRepository.delete(reclamation);
+                .orElseThrow(() -> new IllegalArgumentException("Reclamation not found with id: " + id));
+        
+        logger.info("Found reclamation: {} - {}", reclamation.getId(), reclamation.getTitre());
+        
+        try {
+            reclamationRepository.delete(reclamation);
+            logger.info("Reclamation deleted successfully with ID: {}", id);
+        } catch (DataIntegrityViolationException e) {
+            logger.error("Cannot delete reclamation with ID {} due to foreign key constraints: {}", id, e.getMessage());
+            throw new IllegalStateException("Cannot delete reclamation: it has dependencies that prevent deletion");
+        } catch (Exception e) {
+            logger.error("Error deleting reclamation with ID {}: ", id, e);
+            throw new RuntimeException("Error deleting reclamation: " + e.getMessage());
+        }
     }
 }

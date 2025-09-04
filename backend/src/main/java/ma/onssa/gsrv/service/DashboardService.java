@@ -1,15 +1,15 @@
 package ma.onssa.gsrv.service;
 
 import ma.onssa.gsrv.dto.DashboardData;
-import ma.onssa.gsrv.entity.*;
+import ma.onssa.gsrv.entity.Product;
+import ma.onssa.gsrv.entity.Reclamation;
+import ma.onssa.gsrv.entity.User;
 import ma.onssa.gsrv.repository.ProductRepository;
 import ma.onssa.gsrv.repository.ReclamationRepository;
 import ma.onssa.gsrv.repository.UserRepository;
 import org.springframework.stereotype.Service;
 
-// import java.util.HashMap; // Unused import
-// import java.util.List; // Unused import
-// import java.util.Map; // Unused import
+import java.time.LocalDate;
 import java.util.stream.Collectors;
 
 @Service
@@ -90,6 +90,27 @@ public class DashboardService {
                 data.activeUsers = userRepository.findAll().stream()
                                 .filter(User::isActive)
                                 .count();
+
+                // Calculate compliance rate for admin dashboard (same logic as agent)
+                var allProducts = productRepository.findAll();
+                var allReclamations = reclamationRepository.findAll();
+
+                long compliantProducts = allProducts.stream()
+                                .filter(p -> {
+                                        boolean aboveThreshold = p.getQuantity() > p.getMinimumThreshold();
+                                        boolean notExpired = p.getExpiryDate() == null
+                                                        || p.getExpiryDate().isAfter(LocalDate.now());
+                                        boolean noQualityIssues = allReclamations.stream()
+                                                        .noneMatch(r -> r.getProduct().getId().equals(p.getId()) &&
+                                                                        r.getReason().toLowerCase()
+                                                                                        .contains("qualité"));
+                                        return aboveThreshold && notExpired && noQualityIssues;
+                                })
+                                .count();
+
+                double complianceRate = allProducts.size() > 0 ? (double) compliantProducts / allProducts.size() * 100
+                                : 0;
+                data.complianceRate = Math.round(complianceRate * 10.0) / 10.0; // Round to 1 decimal place
         }
 
         private void setupAgentDashboard(DashboardData data, User user) {
@@ -103,9 +124,29 @@ public class DashboardService {
                                                 "TRAITEE".equals(r.getStatus()))
                                 .count();
 
+                // Calculate real compliance rate (same logic as AnalyticsService)
+                var allProducts = productRepository.findAll();
+                var allReclamations = reclamationRepository.findAll();
+
+                long compliantProducts = allProducts.stream()
+                                .filter(p -> {
+                                        boolean aboveThreshold = p.getQuantity() > p.getMinimumThreshold();
+                                        boolean notExpired = p.getExpiryDate() == null
+                                                        || p.getExpiryDate().isAfter(LocalDate.now());
+                                        boolean noQualityIssues = allReclamations.stream()
+                                                        .noneMatch(r -> r.getProduct().getId().equals(p.getId()) &&
+                                                                        r.getReason().toLowerCase()
+                                                                                        .contains("qualité"));
+                                        return aboveThreshold && notExpired && noQualityIssues;
+                                })
+                                .count();
+
+                double complianceRate = allProducts.size() > 0 ? (double) compliantProducts / allProducts.size() * 100
+                                : 0;
+                data.complianceRate = Math.round(complianceRate * 10.0) / 10.0; // Round to 1 decimal place
+
                 // Agent-specific metrics
                 data.pendingInspections = 5L; // Mock data - in real system this would come from inspection service
-                data.complianceRate = 87.5; // Mock compliance percentage
                 data.regulatoryAlerts = 3L; // Mock regulatory alerts count
         }
 }

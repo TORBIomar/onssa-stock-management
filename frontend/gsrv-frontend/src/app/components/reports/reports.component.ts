@@ -1,307 +1,62 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
 
+interface Report {
+  id: number;
+  type: string;
+  title: string;
+  status: string;
+  createdAt: Date;
+  completedAt: Date | null;
+  description: string;
+}
+
+interface ReportFilters {
+  type: string;
+  status: string;
+  startDate: string;
+  endDate: string;
+}
+
 @Component({
   selector: 'app-reports',
+  templateUrl: './reports.component.html',
+  styleUrls: ['./reports.component.scss'],
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, ReactiveFormsModule],
-  template: `
-    <div class="container-fluid">
-      <div class="row">
-        <div class="col-12">
-          <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2><i class="fas fa-chart-bar me-2"></i>Rapports</h2>
-            <button class="btn btn-primary" (click)="showGenerateReportModal = true">
-              <i class="fas fa-plus me-2"></i>Nouveau Rapport
-            </button>
-          </div>
-
-          <!-- Error and Success Messages -->
-          <div *ngIf="error" class="alert alert-danger alert-dismissible fade show mb-4" role="alert">
-            <i class="fas fa-exclamation-triangle me-2"></i>
-            {{ error }}
-            <button type="button" class="btn-close" (click)="error = ''"></button>
-          </div>
-
-          <div *ngIf="success" class="alert alert-success alert-dismissible fade show mb-4" role="alert">
-            <i class="fas fa-check-circle me-2"></i>
-            {{ success }}
-            <button type="button" class="btn-close" (click)="success = ''"></button>
-          </div>
-
-          <!-- Filters -->
-          <div class="card mb-4">
-            <div class="card-body">
-              <div class="row">
-                <div class="col-md-3">
-                  <label class="form-label">Type de rapport</label>
-                  <select class="form-select" [(ngModel)]="filters.type">
-                    <option value="">Tous les types</option>
-                    <option value="STOCK">Stock</option>
-                    <option value="RECLAMATIONS">Réclamations</option>
-                    <option value="UTILISATEURS">Utilisateurs</option>
-                    <option value="PERFORMANCE">Performance</option>
-                  </select>
-                </div>
-                <div class="col-md-3">
-                  <label class="form-label">Statut</label>
-                  <select class="form-select" [(ngModel)]="filters.status">
-                    <option value="">Tous les statuts</option>
-                    <option value="EN_COURS">En cours</option>
-                    <option value="TERMINE">Terminé</option>
-                    <option value="ERREUR">Erreur</option>
-                  </select>
-                </div>
-                <div class="col-md-3">
-                  <label class="form-label">Date de début</label>
-                  <input type="date" class="form-control" [(ngModel)]="filters.startDate">
-                </div>
-                <div class="col-md-3">
-                  <label class="form-label">Date de fin</label>
-                  <input type="date" class="form-control" [(ngModel)]="filters.endDate">
-                </div>
-              </div>
-              <div class="row mt-3">
-                <div class="col-12">
-                  <button class="btn btn-secondary me-2" (click)="applyFilters()">
-                    <i class="fas fa-filter me-2"></i>Appliquer les filtres
-                  </button>
-                  <button class="btn btn-outline-secondary" (click)="clearFilters()">
-                    <i class="fas fa-times me-2"></i>Effacer
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Reports List -->
-          <div class="card">
-            <div class="card-body">
-              <div class="table-responsive">
-                <table class="table table-hover">
-                  <thead class="table-light">
-                    <tr>
-                      <th>ID</th>
-                      <th>Type</th>
-                      <th>Nom</th>
-                      <th>Statut</th>
-                      <th>Créé le</th>
-                      <th>Terminé le</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr *ngFor="let report of reports" [class.table-warning]="report.status === 'EN_COURS'">
-                      <td>{{ report.id }}</td>
-                      <td>
-                        <span class="badge bg-info">{{ report.type }}</span>
-                      </td>
-                      <td>{{ report.title }}</td>
-                      <td>
-                        <span class="badge" [class]="getStatusClass(report.status)">
-                          {{ getStatusLabel(report.status) }}
-                        </span>
-                      </td>
-                      <td>{{ report.createdAt | date:'dd/MM/yyyy HH:mm' }}</td>
-                      <td>{{ report.completedAt ? (report.completedAt | date:'dd/MM/yyyy HH:mm') : '-' }}</td>
-                      <td>
-                        <div class="btn-group btn-group-sm">
-                          <button class="btn btn-outline-primary" 
-                                  (click)="viewReport(report)"
-                                  [disabled]="report.status !== 'TERMINE'">
-                            <i class="fas fa-eye"></i>
-                          </button>
-                          <button class="btn btn-outline-success" 
-                                  (click)="downloadReport(report, 'pdf')"
-                                  [disabled]="report.status !== 'TERMINE'">
-                            <i class="fas fa-file-pdf"></i>
-                          </button>
-                          <button class="btn btn-outline-info" 
-                                  (click)="downloadReport(report, 'excel')"
-                                  [disabled]="report.status !== 'TERMINE'">
-                            <i class="fas fa-file-excel"></i>
-                          </button>
-                          <button class="btn btn-outline-danger" 
-                                  (click)="deleteReport(report.id)">
-                            <i class="fas fa-trash"></i>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <div *ngIf="reports.length === 0" class="text-center py-4">
-                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
-                <p class="text-muted">Aucun rapport trouvé</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Generate Report Modal -->
-    <div class="modal fade" [class.show]="showGenerateReportModal" [style.display]="showGenerateReportModal ? 'block' : 'none'">
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">Générer un nouveau rapport</h5>
-            <button type="button" class="btn-close" (click)="showGenerateReportModal = false"></button>
-          </div>
-          <div class="modal-body">
-            <form [formGroup]="reportForm">
-              <div class="mb-3">
-                <label class="form-label">Type de rapport *</label>
-                <select class="form-select" formControlName="type">
-                  <option value="">Sélectionner un type</option>
-                  <option value="STOCK">Stock</option>
-                  <option value="RECLAMATIONS">Réclamations</option>
-                  <option value="UTILISATEURS">Utilisateurs</option>
-                  <option value="PERFORMANCE">Performance</option>
-                </select>
-              </div>
-              <div class="mb-3">
-                <label class="form-label">Titre *</label>
-                <input type="text" class="form-control" formControlName="title" placeholder="Titre du rapport">
-              </div>
-              <div class="mb-3">
-                <label class="form-label">Description</label>
-                <textarea class="form-control" formControlName="description" rows="3" placeholder="Description du rapport"></textarea>
-              </div>
-              
-              <!-- Progress indicator -->
-              <div *ngIf="generating" class="mb-3">
-                <div class="progress">
-                  <div class="progress-bar progress-bar-striped progress-bar-animated" 
-                       role="progressbar" 
-                       style="width: 100%" 
-                       aria-valuenow="100" 
-                       aria-valuemin="0" 
-                       aria-valuemax="100">
-                    Génération en cours...
-                  </div>
-                </div>
-                <small class="text-muted">
-                  <i class="fas fa-info-circle me-1"></i>
-                  La génération peut prendre quelques secondes
-                </small>
-              </div>
-            </form>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" (click)="showGenerateReportModal = false">Annuler</button>
-            <button type="button" class="btn btn-primary" (click)="generateReport()" [disabled]="!reportForm.valid || generating">
-              <span *ngIf="!generating">
-                <i class="fas fa-file-alt me-2"></i>Générer
-              </span>
-              <span *ngIf="generating">
-                <i class="fas fa-spinner fa-spin me-2"></i>Génération en cours...
-              </span>
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Report Details Modal -->
-    <div class="modal fade" [class.show]="showReportDetailsModal" [style.display]="showReportDetailsModal ? 'block' : 'none'">
-      <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">Détails du rapport</h5>
-            <button type="button" class="btn-close" (click)="showReportDetailsModal = false"></button>
-          </div>
-          <div class="modal-body">
-            <div *ngIf="selectedReport">
-              <div class="row mb-3">
-                <div class="col-md-6">
-                  <strong>Type:</strong> {{ selectedReport.type }}
-                </div>
-                <div class="col-md-6">
-                  <strong>Statut:</strong> 
-                  <span class="badge" [class]="getStatusClass(selectedReport.status)">
-                    {{ getStatusLabel(selectedReport.status) }}
-                  </span>
-                </div>
-              </div>
-              <div class="row mb-3">
-                <div class="col-md-6">
-                  <strong>Créé le:</strong> {{ selectedReport.createdAt | date:'dd/MM/yyyy HH:mm' }}
-                </div>
-                <div class="col-md-6">
-                  <strong>Terminé le:</strong> {{ selectedReport.completedAt ? (selectedReport.completedAt | date:'dd/MM/yyyy HH:mm') : '-' }}
-                </div>
-              </div>
-              <div class="mb-3">
-                <strong>Description:</strong>
-                <p>{{ selectedReport.description || 'Aucune description' }}</p>
-              </div>
-              
-              <!-- Report Content -->
-              <div *ngIf="selectedReport.content" class="mt-4">
-                <h6>Contenu du rapport:</h6>
-                <div class="border rounded p-3 bg-light">
-                  <pre>{{ selectedReport.content | json }}</pre>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" (click)="showReportDetailsModal = false">Fermer</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Backdrop -->
-    <div class="modal-backdrop fade show" *ngIf="showGenerateReportModal || showReportDetailsModal"></div>
-  `,
-  styles: [`
-    .modal-backdrop {
-      z-index: 1040;
-    }
-    .modal {
-      z-index: 1050;
-    }
-    .table th {
-      border-top: none;
-      font-weight: 600;
-    }
-    .badge {
-      font-size: 0.75em;
-    }
-    .btn-group .btn {
-      margin-right: 2px;
-    }
-  `]
+  imports: [CommonModule, FormsModule, ReactiveFormsModule]
 })
 export class ReportsComponent implements OnInit {
-  reports: any[] = [];
-  filters: any = {
+  // Data
+  reports: Report[] = [];
+  filteredReports: Report[] = [];
+  
+  // UI State
+  loading = false;
+  showGenerateModal = false;
+  showDetailsModal = false;
+  selectedReport: Report | null = null;
+  generating = false;
+  
+  // Messages
+  errorMessage = '';
+  successMessage = '';
+  
+  // Forms
+  reportForm: FormGroup;
+  filters: ReportFilters = {
     type: '',
     status: '',
     startDate: '',
     endDate: ''
   };
 
-  showGenerateReportModal = false;
-  showReportDetailsModal = false;
-  selectedReport: any = null;
-  generating = false;
-  error: string = '';
-  success: string = '';
-
-  reportForm!: FormGroup;
-
   constructor(
     private apiService: ApiService,
-    private fb: FormBuilder
+    private fb: FormBuilder,
+    private cdr: ChangeDetectorRef
   ) {
     this.reportForm = this.fb.group({
       type: ['', Validators.required],
@@ -312,210 +67,258 @@ export class ReportsComponent implements OnInit {
     });
   }
 
-  ngOnInit() {
+  ngOnInit(): void {
     this.loadReports();
   }
 
-  loadReports() {
+  // ===== DATA LOADING =====
+  loadReports(): void {
+    this.loading = true;
+    this.errorMessage = '';
+    
     this.apiService.getAllReports().subscribe({
-      next: (data) => {
-        this.reports = data;
+      next: (data: any) => {
+        console.log('API Response:', data);
+        
+        if (data && Array.isArray(data) && data.length > 0) {
+          // Real API data
+          this.reports = this.mapApiDataToReports(data);
+          console.log('Loaded real reports:', this.reports.length);
+        } else {
+          // No data available
+          this.reports = [];
+          console.log('No reports found');
+        }
+        
+        this.applyFilters();
+        this.loading = false;
+        this.cdr.detectChanges();
       },
-      error: (error) => {
-        console.error('Error loading reports:', error);
-        console.error('Erreur lors du chargement des rapports');
-        // Fallback to mock data if API fails
-        this.loadMockReports();
+      error: (error: any) => {
+        console.error('API Error:', error);
+        this.reports = [];
+        this.filteredReports = [];
+        
+        // Show specific error message
+        if (error?.status === 500) {
+          this.errorMessage = 'Erreur serveur. Veuillez vérifier que le backend est démarré sur le port 8082.';
+        } else if (error?.status === 0) {
+          this.errorMessage = 'Impossible de se connecter au serveur. Vérifiez que le backend est démarré.';
+        } else {
+          this.errorMessage = 'Erreur lors du chargement des rapports. Veuillez réessayer.';
+        }
+        
+        this.loading = false;
+        this.cdr.detectChanges();
       }
     });
   }
 
-  loadMockReports() {
-    this.reports = [
-      {
-        id: 1,
-        type: 'STOCK',
-        title: 'Rapport de stock mensuel',
-        status: 'TERMINE',
-        createdAt: new Date('2024-01-15'),
-        completedAt: new Date('2024-01-15T10:30:00'),
-        description: 'Rapport mensuel de l\'état du stock'
-      },
-      {
-        id: 2,
-        type: 'RECLAMATIONS',
-        title: 'Rapport des réclamations',
-        status: 'EN_COURS',
-        createdAt: new Date('2024-01-16'),
-        completedAt: null,
-        description: 'Analyse des réclamations du mois'
-      },
-      {
-        id: 3,
-        type: 'UTILISATEURS',
-        title: 'Rapport des utilisateurs actifs',
-        status: 'TERMINE',
-        createdAt: new Date('2024-01-14'),
-        completedAt: new Date('2024-01-14T14:20:00'),
-        description: 'Statistiques des utilisateurs actifs'
-      }
-    ];
+  private mapApiDataToReports(apiData: any[]): Report[] {
+    return apiData.map(item => ({
+      id: item.id,
+      type: item.type,
+      title: item.title,
+      status: item.status,
+      createdAt: item.createdAt ? new Date(item.createdAt) : new Date(),
+      completedAt: item.generatedAt ? new Date(item.generatedAt) : null,
+      description: item.description || ''
+    }));
   }
 
-  applyFilters() {
-    // Apply filters to the reports list
-    this.loadReports(); // In a real app, you'd pass filters to the API
+  // ===== FILTERING =====
+  applyFilters(): void {
+    this.filteredReports = this.reports.filter(report => {
+      const typeMatch = !this.filters.type || report.type === this.filters.type;
+      const statusMatch = !this.filters.status || report.status === this.filters.status;
+      const dateMatch = this.checkDateRange(report.createdAt);
+      
+      return typeMatch && statusMatch && dateMatch;
+    });
   }
 
-  clearFilters() {
+  private checkDateRange(date: Date): boolean {
+    if (!this.filters.startDate && !this.filters.endDate) return true;
+    
+    const reportDate = date.getTime();
+    const startDate = this.filters.startDate ? new Date(this.filters.startDate).getTime() : 0;
+    const endDate = this.filters.endDate ? new Date(this.filters.endDate).getTime() : Date.now();
+    
+    return reportDate >= startDate && reportDate <= endDate;
+  }
+
+  clearFilters(): void {
     this.filters = {
       type: '',
       status: '',
       startDate: '',
       endDate: ''
     };
-    this.loadReports();
+    this.applyFilters();
   }
 
-  generateReport() {
-    if (this.reportForm.valid) {
-      this.generating = true;
-      this.error = '';
-
-      const reportData = {
-        title: this.reportForm.get('title')?.value,
-        description: this.reportForm.get('description')?.value,
-        status: 'EN_COURS'
-      };
-
-      console.log('=== REPORT GENERATION DEBUG ===');
-      console.log('Form valid:', this.reportForm.valid);
-      console.log('Form values:', this.reportForm.value);
-      console.log('Report type:', this.reportForm.get('type')?.value);
-      console.log('Report data being sent:', reportData);
-      console.log('API endpoint:', `http://localhost:8082/reports/type/${this.reportForm.get('type')?.value}/generate`);
-      console.log('================================');
-
-      this.apiService.generateReport(this.reportForm.get('type')?.value, reportData).subscribe({
-        next: (response) => {
-          console.log('✅ Report generated successfully:', response);
-          this.generating = false;
-          this.showGenerateReportModal = false;
-          this.loadReports(); // Refresh the reports list
-          this.success = 'Rapport généré avec succès!';
-          setTimeout(() => this.success = '', 5000);
-        },
-        error: (error) => {
-          console.error('❌ Error generating report:', error);
-          console.error('Error details:', {
-            status: error.status,
-            statusText: error.statusText,
-            message: error.message,
-            error: error.error
-          });
-          this.generating = false;
-          this.error = this.getErrorMessage(error);
-          setTimeout(() => this.error = '', 10000);
-        }
-      });
-    } else {
-      console.log('❌ Form is invalid:', this.reportForm.errors);
-      console.log('Form status:', this.reportForm.status);
-      this.error = 'Veuillez remplir tous les champs requis';
+  // ===== REPORT OPERATIONS =====
+  generateReport(): void {
+    if (!this.reportForm.valid) {
+      this.errorMessage = 'Veuillez remplir tous les champs requis';
+      return;
     }
+
+    this.generating = true;
+    this.errorMessage = '';
+    
+    const formData = this.reportForm.value;
+    const reportData = {
+      title: formData.title,
+      description: formData.description,
+      status: 'EN_COURS'
+    };
+
+    this.apiService.generateReport(formData.type, reportData).subscribe({
+      next: (response: any) => {
+        this.successMessage = 'Rapport généré avec succès';
+        this.generating = false;
+        this.showGenerateModal = false;
+        this.reportForm.reset();
+        this.loadReports();
+        this.cdr.detectChanges();
+      },
+      error: (error: any) => {
+        this.errorMessage = this.getErrorMessage(error);
+        this.generating = false;
+        this.cdr.detectChanges();
+      }
+    });
   }
 
-  resetForm() {
-    this.reportForm.reset();
+  deleteReport(reportId: number): void {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer ce rapport ?')) {
+      return;
+    }
+
+    // Real API deletion
+    this.apiService.deleteReport(reportId).subscribe({
+      next: () => {
+        this.successMessage = 'Rapport supprimé avec succès';
+        this.loadReports();
+        this.cdr.detectChanges();
+      },
+      error: (error: any) => {
+        this.errorMessage = this.getDeleteErrorMessage(error);
+        this.loadReports(); // Refresh to sync UI
+        this.cdr.detectChanges();
+      }
+    });
   }
 
-  viewReport(report: any) {
-    this.selectedReport = report;
-    this.showReportDetailsModal = true;
-  }
-
-  downloadReport(report: any, format: string) {
+  downloadReport(report: Report, format: string): void {
     const params = new URLSearchParams();
     if (this.filters.startDate) params.append('startDate', this.filters.startDate);
     if (this.filters.endDate) params.append('endDate', this.filters.endDate);
 
     this.apiService.downloadReport(report.type, format, params).subscribe({
-      next: (blob) => {
+      next: (blob: Blob) => {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
         a.download = `${report.title}_${report.type}.${format}`;
         a.click();
         window.URL.revokeObjectURL(url);
-        alert(`Rapport téléchargé en format ${format.toUpperCase()}`);
+        this.successMessage = `Rapport téléchargé en format ${format.toUpperCase()}`;
+        this.cdr.detectChanges();
       },
-      error: (error) => {
-        console.error('Error downloading report:', error);
-        alert('Erreur lors du téléchargement du rapport');
+      error: (error: any) => {
+        this.errorMessage = 'Erreur lors du téléchargement';
+        this.cdr.detectChanges();
       }
     });
   }
 
-  deleteReport(reportId: number) {
-    if (confirm('Êtes-vous sûr de vouloir supprimer ce rapport ?')) {
-      this.apiService.deleteReport(reportId).subscribe({
-        next: () => {
-          alert('Rapport supprimé avec succès');
-          this.loadReports();
-        },
-        error: (error) => {
-          console.error('Error deleting report:', error);
-          alert('Erreur lors de la suppression du rapport');
-        }
-      });
-    }
+  viewReport(report: Report): void {
+    this.selectedReport = report;
+    this.showDetailsModal = true;
   }
 
+  // ===== UI HELPERS =====
   getStatusClass(status: string): string {
     switch (status) {
-      case 'TERMINE':
-        return 'bg-success';
-      case 'EN_COURS':
-        return 'bg-warning';
-      case 'ERREUR':
-        return 'bg-danger';
-      default:
-        return 'bg-secondary';
+      case 'TERMINE': return 'bg-success';
+      case 'EN_COURS': return 'bg-warning';
+      case 'ERREUR': return 'bg-danger';
+      default: return 'bg-secondary';
     }
   }
 
   getStatusLabel(status: string): string {
     switch (status) {
-      case 'TERMINE':
-        return 'Terminé';
-      case 'EN_COURS':
-        return 'En cours';
-      case 'ERREUR':
-        return 'Erreur';
-      default:
-        return status;
+      case 'TERMINE': return 'Terminé';
+      case 'EN_COURS': return 'En cours';
+      case 'ERREUR': return 'Erreur';
+      default: return status;
     }
   }
 
-  getErrorMessage(error: any): string {
-    if (error?.error?.message) {
-      return error.error.message;
+  getTypeClass(type: string): string {
+    switch (type) {
+      case 'STOCK': return 'bg-primary';
+      case 'RECLAMATIONS': return 'bg-info';
+      case 'UTILISATEURS': return 'bg-secondary';
+      default: return 'bg-dark';
     }
-    if (error?.message) {
-      return error.message;
-    }
-    if (error?.status === 403) {
-      return 'Accès refusé. Vous n\'avez pas les permissions nécessaires.';
-    }
-    if (error?.status === 400) {
-      return 'Données invalides. Vérifiez les informations saisies.';
-    }
-    if (error?.status === 404) {
-      return 'Ressource non trouvée.';
-    }
-    if (error?.status === 500) {
-      return 'Erreur serveur. Veuillez réessayer plus tard.';
-    }
-    return 'Erreur lors de la génération du rapport. Veuillez réessayer.';
+  }
+
+  formatDate(date: Date | null): string {
+    if (!date) return '-';
+    return date.toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+
+  // ===== ERROR HANDLING =====
+  private getErrorMessage(error: any): string {
+    if (error?.status === 403) return 'Accès refusé. Permissions insuffisantes.';
+    if (error?.status === 400) return 'Données invalides. Vérifiez les informations.';
+    if (error?.status === 500) return 'Erreur serveur. Veuillez réessayer.';
+    return 'Erreur lors de la génération du rapport.';
+  }
+
+  private getDeleteErrorMessage(error: any): string {
+    if (error?.status === 404) return 'Rapport non trouvé. Il a peut-être déjà été supprimé.';
+    if (error?.status === 403) return 'Accès refusé. Seuls les administrateurs peuvent supprimer des rapports.';
+    if (error?.status === 500) return 'Erreur serveur lors de la suppression.';
+    return 'Erreur lors de la suppression du rapport.';
+  }
+
+  // ===== MODAL HELPERS =====
+  openGenerateModal(): void {
+    this.showGenerateModal = true;
+    this.errorMessage = '';
+    this.successMessage = '';
+  }
+
+  closeGenerateModal(): void {
+    this.showGenerateModal = false;
+    this.reportForm.reset();
+    this.errorMessage = '';
+    this.generating = false;
+  }
+
+  closeDetailsModal(): void {
+    this.showDetailsModal = false;
+    this.selectedReport = null;
+  }
+
+  // ===== UTILITY =====
+  clearMessages(): void {
+    this.errorMessage = '';
+    this.successMessage = '';
+  }
+
+  isAdmin(): boolean {
+    return this.apiService.isAuthenticated() && this.apiService.getCurrentUser()?.role === 'ADMIN';
   }
 }

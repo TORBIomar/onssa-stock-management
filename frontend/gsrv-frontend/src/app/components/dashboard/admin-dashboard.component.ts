@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { ApiService } from '../../services/api.service';
@@ -17,8 +17,8 @@ import { ApiService } from '../../services/api.service';
               <i class="bi bi-shield-check"></i>
             </div>
             <div class="brand-text">
-              <h1 class="brand-title">GSRV System</h1>
-              <p class="brand-subtitle">Administration Dashboard</p>
+              <h1 class="brand-title">ONSSA SM</h1>
+              <p class="brand-subtitle">Système de Gestion</p>
             </div>
           </div>
           
@@ -80,6 +80,16 @@ import { ApiService } from '../../services/api.service';
             <div class="stat-content">
               <h3 class="stat-number">{{ dashboardData?.lowStockCount || 0 }}</h3>
               <p class="stat-label">Stock Faible</p>
+            </div>
+          </div>
+
+          <div class="stat-card success">
+            <div class="stat-icon">
+              <i class="bi bi-shield-check"></i>
+            </div>
+            <div class="stat-content">
+              <h3 class="stat-number">{{ dashboardData?.complianceRate || 0 }}%</h3>
+              <p class="stat-label">Taux de Conformité</p>
             </div>
           </div>
         </div>
@@ -609,10 +619,19 @@ import { ApiService } from '../../services/api.service';
   `]
 })
 export class AdminDashboardComponent implements OnInit {
-  dashboardData: any = null;
+  dashboardData: any = {
+    totalUsers: 0,
+    totalProducts: 0,
+    totalReclamations: 0,
+    lowStockCount: 0,
+    totalTasks: 0,
+    complianceRate: 0,
+    recentActivity: []
+  };
 
   constructor(
-    private api: ApiService
+    private api: ApiService,
+    private cdr: ChangeDetectorRef
   ) { }
 
   ngOnInit() {
@@ -620,8 +639,11 @@ export class AdminDashboardComponent implements OnInit {
   }
 
   loadDashboardData() {
+    console.log('Loading dashboard data...');
     this.api.getDashboardData().subscribe({
-      next: (data) => {
+      next: (data: any) => {
+        console.log('Dashboard data received:', data);
+
         // Handle both direct data and nested stats format
         if (data && data.stats) {
           // Backend returns nested format
@@ -631,31 +653,49 @@ export class AdminDashboardComponent implements OnInit {
             totalReclamations: data.stats.totalReclamations || 0,
             lowStockCount: data.stats.criticalProducts || 0,
             totalTasks: data.stats.pendingTasks || 0,
+            complianceRate: data.stats.complianceRate || 0,
             recentActivity: data.recentActivities || []
           };
+        } else if (data) {
+          // Direct format
+          this.dashboardData = {
+            totalUsers: data.totalUsers || 0,
+            totalProducts: data.totalProducts || 0,
+            totalReclamations: data.totalReclamations || 0,
+            lowStockCount: data.lowStockCount || data.criticalProducts || 0,
+            totalTasks: data.totalTasks || 0,
+            complianceRate: data.complianceRate || 0,
+            recentActivity: data.recentActivity || data.recentActivities || []
+          };
         } else {
-          // Direct format or fallback
-          this.dashboardData = data || {
+          // Fallback
+          this.dashboardData = {
             totalUsers: 0,
             totalProducts: 0,
             totalReclamations: 0,
             lowStockCount: 0,
             totalTasks: 0,
+            complianceRate: 0,
             recentActivity: []
           };
         }
+
+        console.log('Processed dashboard data:', this.dashboardData);
+        this.cdr.detectChanges(); // Detect changes after data is loaded
       },
-      error: (error) => {
+      error: (error: any) => {
         console.error('Error loading dashboard data:', error);
         // Provide default data to prevent loading state
         this.dashboardData = {
-          totalUsers: 1,
-          totalProducts: 1,
+          totalUsers: 0,
+          totalProducts: 0,
           totalReclamations: 0,
           lowStockCount: 0,
           totalTasks: 0,
+          complianceRate: 0,
           recentActivity: []
         };
+        this.cdr.detectChanges(); // Detect changes even on error
       }
     });
   }
