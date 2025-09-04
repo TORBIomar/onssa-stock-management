@@ -113,9 +113,15 @@ public class ReportService {
             Report report = existingReport.get();
             logger.info("Found report: {} with status: {}", report.getTitle(), report.getStatus());
 
-            // Simulate report generation
+            // Check if report is already generated
+            if (Report.ReportStatus.TERMINE.equals(report.getStatus())) {
+                logger.info("Report {} is already generated", id);
+                return report;
+            }
+
+            // Simulate report generation (reduced from 1000ms to 200ms for better UX)
             try {
-                Thread.sleep(1000); // Simulate processing time
+                Thread.sleep(200); // Simulate processing time
 
                 report.setStatus(Report.ReportStatus.TERMINE);
                 report.setGeneratedAt(LocalDateTime.now());

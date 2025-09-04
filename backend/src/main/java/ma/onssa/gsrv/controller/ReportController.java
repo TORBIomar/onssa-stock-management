@@ -112,16 +112,16 @@ public class ReportController {
         } catch (Exception e) {
             logger.error("Error generating report with ID {}: ", id, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(null);
+                    .body(null);
         }
     }
 
-    @PostMapping("/{type}/generate")
+    @PostMapping("/type/{type}/generate")
     @PreAuthorize("hasAnyRole('ADMIN', 'AGENT')")
     public ResponseEntity<Report> generateReportByType(@PathVariable String type, @RequestBody ReportDto dto) {
         try {
             logger.info("Generating report of type: {} with DTO: {}", type, dto);
-            
+
             // Validate report type
             Report.ReportType reportType;
             try {
@@ -130,7 +130,7 @@ public class ReportController {
                 logger.error("Invalid report type: {}", type);
                 return ResponseEntity.badRequest().body(null);
             }
-            
+
             Report report = new Report();
             report.setTitle(dto.title);
             report.setDescription(dto.description);
@@ -145,7 +145,7 @@ public class ReportController {
         } catch (Exception e) {
             logger.error("Error generating report by type: ", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(null);
+                    .body(null);
         }
     }
 
@@ -170,7 +170,7 @@ public class ReportController {
         } catch (Exception e) {
             logger.error("Error downloading report: ", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(null);
+                    .body(null);
         }
     }
 

@@ -823,7 +823,22 @@ export class ApiService {
   }
 
   generateReport(reportType: string, filters: any = {}): Observable<any> {
-    return this.http.post<any>(`${this.apiBase}/reports/${reportType}/generate`, filters, { headers: this.getHeaders() });
+    console.log('🚀 API Service - generateReport called with:', { reportType, filters });
+    console.log('🚀 API Service - Full URL:', `${this.apiBase}/reports/type/${reportType}/generate`);
+    console.log('🚀 API Service - Headers:', this.getHeaders());
+
+    return this.http.post<any>(`${this.apiBase}/reports/type/${reportType}/generate`, filters, { headers: this.getHeaders() })
+      .pipe(
+        tap(response => console.log('✅ API Service - Response received:', response)),
+        timeout(30000), // 30 second timeout
+        catchError(error => {
+          console.error('❌ API Service - Error occurred:', error);
+          if (error.name === 'TimeoutError') {
+            return throwError(() => new Error('La génération du rapport a pris trop de temps. Veuillez réessayer.'));
+          }
+          return throwError(() => error);
+        })
+      );
   }
 
   // Report methods

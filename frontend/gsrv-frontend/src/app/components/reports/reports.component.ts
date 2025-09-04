@@ -158,31 +158,39 @@ import { ApiService } from '../../services/api.service';
             <form [formGroup]="reportForm">
               <div class="mb-3">
                 <label class="form-label">Type de rapport *</label>
-                <select class="form-select" formControlName="type" required>
+                <select class="form-select" formControlName="type">
                   <option value="">Sélectionner un type</option>
-                  <option value="STOCK">Rapport de stock</option>
-                  <option value="RECLAMATIONS">Rapport de réclamations</option>
-                  <option value="UTILISATEURS">Rapport d'utilisateurs</option>
-                  <option value="PERFORMANCE">Rapport de performance</option>
+                  <option value="STOCK">Stock</option>
+                  <option value="RECLAMATIONS">Réclamations</option>
+                  <option value="UTILISATEURS">Utilisateurs</option>
+                  <option value="PERFORMANCE">Performance</option>
                 </select>
               </div>
               <div class="mb-3">
-                <label class="form-label">Titre du rapport *</label>
-                <input type="text" class="form-control" formControlName="title" required>
+                <label class="form-label">Titre *</label>
+                <input type="text" class="form-control" formControlName="title" placeholder="Titre du rapport">
               </div>
               <div class="mb-3">
                 <label class="form-label">Description</label>
-                <textarea class="form-control" formControlName="description" rows="3"></textarea>
+                <textarea class="form-control" formControlName="description" rows="3" placeholder="Description du rapport"></textarea>
               </div>
-              <div class="row">
-                <div class="col-md-6">
-                  <label class="form-label">Date de début</label>
-                  <input type="date" class="form-control" formControlName="startDate">
+              
+              <!-- Progress indicator -->
+              <div *ngIf="generating" class="mb-3">
+                <div class="progress">
+                  <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                       role="progressbar" 
+                       style="width: 100%" 
+                       aria-valuenow="100" 
+                       aria-valuemin="0" 
+                       aria-valuemax="100">
+                    Génération en cours...
+                  </div>
                 </div>
-                <div class="col-md-6">
-                  <label class="form-label">Date de fin</label>
-                  <input type="date" class="form-control" formControlName="endDate">
-                </div>
+                <small class="text-muted">
+                  <i class="fas fa-info-circle me-1"></i>
+                  La génération peut prendre quelques secondes
+                </small>
               </div>
             </form>
           </div>
@@ -380,11 +388,17 @@ export class ReportsComponent implements OnInit {
         status: 'EN_COURS'
       };
 
-      console.log('Generating report with data:', reportData);
+      console.log('=== REPORT GENERATION DEBUG ===');
+      console.log('Form valid:', this.reportForm.valid);
+      console.log('Form values:', this.reportForm.value);
+      console.log('Report type:', this.reportForm.get('type')?.value);
+      console.log('Report data being sent:', reportData);
+      console.log('API endpoint:', `http://localhost:8082/reports/type/${this.reportForm.get('type')?.value}/generate`);
+      console.log('================================');
 
       this.apiService.generateReport(this.reportForm.get('type')?.value, reportData).subscribe({
         next: (response) => {
-          console.log('Report generated successfully:', response);
+          console.log('✅ Report generated successfully:', response);
           this.generating = false;
           this.showGenerateReportModal = false;
           this.loadReports(); // Refresh the reports list
@@ -392,12 +406,22 @@ export class ReportsComponent implements OnInit {
           setTimeout(() => this.success = '', 5000);
         },
         error: (error) => {
-          console.error('Error generating report:', error);
+          console.error('❌ Error generating report:', error);
+          console.error('Error details:', {
+            status: error.status,
+            statusText: error.statusText,
+            message: error.message,
+            error: error.error
+          });
           this.generating = false;
           this.error = this.getErrorMessage(error);
           setTimeout(() => this.error = '', 10000);
         }
       });
+    } else {
+      console.log('❌ Form is invalid:', this.reportForm.errors);
+      console.log('Form status:', this.reportForm.status);
+      this.error = 'Veuillez remplir tous les champs requis';
     }
   }
 
