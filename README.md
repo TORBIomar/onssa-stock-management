@@ -1,70 +1,67 @@
-# ONSSA Stock Management
+# 🏢 ONSSA Stock Management — Enterprise Inventory Platform
 
-Professional full-stack stock management platform for ONSSA, organized as a clean monorepo with:
+<div align="center">
 
-- `backend`: Spring Boot API
-- `frontend`: Angular application
+[![Angular](https://img.shields.io/badge/Frontend-Angular%2017%2B-DD0031?style=for-the-badge&logo=angular&logoColor=white)](https://angular.io/)
+[![Spring Boot](https://img.shields.io/badge/Backend-Spring%20Boot%203-6DB33F?style=for-the-badge&logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
+[![MySQL](https://img.shields.io/badge/Database-MySQL%208-4479A1?style=for-the-badge&logo=mysql&logoColor=white)](https://www.mysql.com/)
+[![TypeScript](https://img.shields.io/badge/Language-TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 
-## Project Structure
+<p align="center">
+  <b>Full-stack inventory and asset tracking platform developed for ONSSA (National Food Safety Office).</b><br>
+  Engineered as a clean monorepo featuring a high-performance Spring Boot REST API and a responsive Angular frontend.
+</p>
+
+</div>
+
+---
+
+## ✨ System Modules
+
+- **📦 Inventory & Stock Control**: Track incoming shipments, warehouse allocations, lot numbers, and expiration dates.
+- **🏷️ Product & Category Management**: Comprehensive taxonomy for sanitary products, lab supplies, and consumables.
+- **📊 Real-time Stock Alerts**: Automated threshold notifications for low inventory and expiring items.
+- **🛡️ Role-Based Access Control (RBAC)**: Secure access tailored for warehouse operators, inspectors, and department administrators.
+- **📑 Audit Trails**: Full transaction history logging every entry, transfer, and consumption event.
+
+---
+
+## 📂 Monorepo Structure
 
 ```text
-ONSSA-Stock-Management/
-├── backend/
-└── frontend/
+onssa-stock-management/
+├── backend/            # Spring Boot 3 Java REST API
+│   ├── src/main/java   # Controllers, Services, Repositories, Entities
+│   └── pom.xml
+└── frontend/           # Angular 17+ Single Page Application
+    ├── src/app         # Components, Services, Guards, Models
+    └── package.json
 ```
 
-## Tech Stack
+---
 
-- Backend: Java 17, Spring Boot, Spring Security (JWT), JPA/Hibernate, MySQL
-- Frontend: Angular, TypeScript, SCSS
+## 🚀 Setup Guide
 
-## Prerequisites
-
-- Java 17+
-- Maven 3.8+
-- Node.js 18+
-- npm 9+
-- MySQL 8+
-
-## Quick Start
-
-### 1) Clone the repository
-
-```bash
-git clone <your-repo-url>
-cd ONSSA-Stock-Management
-```
-
-### 2) Backend setup
-
+### 1. Backend
 ```bash
 cd backend
 mvn clean install
 mvn spring-boot:run
 ```
 
-Backend runs on `http://localhost:8080`.
-
-### 3) Frontend setup
-
+### 2. Frontend
 ```bash
-cd frontend/gsrv-frontend
+cd frontend
 npm install
-npm start
+ng serve --open
 ```
 
-Frontend runs on `http://localhost:4200`.
+---
 
-## Environment Configuration
+## 👨‍💻 Author
 
-- Backend settings: `backend/src/main/resources/application.properties`
-- Frontend settings: `frontend/gsrv-frontend/src/environments/environment.ts`
-
-## GitHub-Ready Notes
-
-- Repository is cleaned to keep only the application code and required configuration.
-- Editor-specific and diagram-only files were removed from version control.
-
-## License
-
-MIT (or your preferred license).
+**Omar Torbi** — Full-Stack Engineer & Software Architect
+- 🌐 **Portfolio**: [omartorbi.engineer](https://www.omartorbi.engineer)
+- 💼 **LinkedIn**: [linkedin.com/in/omar-torbi](https://www.linkedin.com/in/omar-torbi-b8340933a/)
+- 🐙 **GitHub**: [@TORBIomar](https://github.com/TORBIomar)
+- ✉️ **Email**: [torbi.dev@outlook.com](mailto:torbi.dev@outlook.com)
